@@ -1,0 +1,21 @@
+import { API_BASE_URL } from '../API/API'
+
+export const getDriverByEmail = async (email:string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/driverMail/${email}`);
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.log("Error:", error);
+      return null;
+    }
+
+    const data = await response.json();
+    //console.log("Driver data:", data);
+    return data;
+
+  } catch (err) {
+    console.log("Request error:", err);
+    return null;
+  }
+};
