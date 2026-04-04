@@ -1,40 +1,28 @@
 // src/screens/SplashScreen.tsx
-import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Animated, Easing, Text, Image } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, Text } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../../navigator/MainStackNavigator';
 import { loadSavedPhone } from '../../utils/SavedPhoneFunctios';
-import { AnimatedBee } from './AnimatedBee'; // Ajusta la ruta según tu estructura
+import { AnimatedBee } from './AnimatedBee';
 
 interface Props extends StackScreenProps<RootStackParamList, "SplashScreen"> { };
 
 const SplashScreen = ({ navigation, route }: Props) => {
   const [animationState, setAnimationState] = useState('idle');
-  const [progress, setProgress] = useState('Iniciando...');
 
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // Simular estados de carga
-        setAnimationState('loading');
-        setProgress('Conectando...');
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        setAnimationState('processing');
-        setProgress('Verificando sesión...');
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        setAnimationState('waiting');
-        setProgress('Preparando aplicación...');
-        
-        // Verificar si hay sesión guardada
-        let getStorage = await loadSavedPhone();
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Pequeña pausa para que se vea la animación
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         setAnimationState('completed');
-        setProgress('¡Bienvenido!');
         await new Promise(resolve => setTimeout(resolve, 800));
 
+        // Verificar si hay sesión guardada
+        let getStorage = await loadSavedPhone();
+        
         // Navegar según si hay sesión guardada
         if (getStorage?.includes("[storage-driver]")) {
           navigation.replace('DriverLoginScreen');
@@ -52,56 +40,36 @@ const SplashScreen = ({ navigation, route }: Props) => {
 
   return (
     <View style={styles.container}>
-      {/* Fondo con gradiente (opcional) */}
-      <View style={styles.background}>
-        <View style={styles.gradientOverlay} />
-      </View>
+      {/* Fondo superior púrpura */}
+      <View style={styles.topGradient} />
 
       {/* Contenido principal */}
       <View style={styles.content}>
-        {/* Logo/Header */}
-        <View style={styles.headerSection}>
-          <Text style={styles.brandText}>BIVI CONNECT</Text>
-          <Text style={styles.taglineText}>Consumer Intelligence</Text>
-        </View>
-
-        {/* Sección de animación */}
+        {/* Sección de animación - Centrada */}
         <View style={styles.animationSection}>
           <AnimatedBee
             state={animationState}
-            size={120}
+            size={180}
             showLabel={false}
             imageSrc={require("../../../assets/bivi-bee-mascot.png")}
           />
+        </View>
+
+        {/* Sección de branding - Inferior */}
+        <View style={styles.brandingSection}>
+          <View style={styles.brandContainer}>
+            <Text style={styles.brandText}>BIVI</Text>
+            <Text style={styles.connectText}>CONNECT</Text>
+          </View>
+          <Text style={styles.taglineText}>Consumer Intelligence Platform</Text>
           
-          <Text style={styles.progressText}>{progress}</Text>
-        </View>
-
-        {/* Indicador de progreso */}
-        <View style={styles.progressBarContainer}>
-          <View 
-            style={[
-              styles.progressBar,
-              {
-                width: animationState === 'idle' 
-                  ? '25%' 
-                  : animationState === 'loading' 
-                  ? '50%'
-                  : animationState === 'processing'
-                  ? '75%'
-                  : animationState === 'waiting'
-                  ? '85%'
-                  : '100%'
-              }
-            ]}
-          />
+          {/* Línea decorativa */}
+          <View style={styles.decorativeLine} />
         </View>
       </View>
 
-      {/* Footer opcional */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Versión 1.0</Text>
-      </View>
+      {/* Fondo inferior magenta */}
+      <View style={styles.bottomGradient} />
     </View>
   );
 };
@@ -112,104 +80,90 @@ const styles = StyleSheet.create({
   // ===== CONTENEDOR PRINCIPAL =====
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#E91E63',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
 
-  // ===== BACKGROUND =====
-  background: {
+  // ===== FONDOS PARA SIMULAR GRADIENTE =====
+  topGradient: {
     position: 'absolute',
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#FFFFFF',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    backgroundColor: '#6B2D7A',
   },
 
-  gradientOverlay: {
+  bottomGradient: {
     position: 'absolute',
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(107, 45, 122, 0.03)',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    backgroundColor: '#E91E63',
   },
 
   // ===== CONTENIDO PRINCIPAL =====
   content: {
     flex: 1,
     width: '100%',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 60,
+    zIndex: 10,
+  },
+
+  // ===== SECCIÓN DE ANIMACIÓN (CENTRADA) =====
+  animationSection: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+
+  // ===== SECCIÓN DE BRANDING (INFERIOR) =====
+  brandingSection: {
+    alignItems: 'center',
+    gap: 16,
     paddingHorizontal: 20,
+    marginBottom: 20,
   },
 
-  // ===== SECCIÓN HEADER =====
-  headerSection: {
+  brandContainer: {
     alignItems: 'center',
-    marginTop: 60,
-    gap: 12,
-  },
-
-  logo: {
-    width: 80,
-    height: 80,
-    resizeMode: 'contain',
   },
 
   brandText: {
-    fontSize: 28,
+    fontSize: 48,
     fontWeight: '800',
-    color: '#6B2D7A',
+    color: '#FFFFFF',
+    letterSpacing: 3,
+    lineHeight: 52,
+  },
+
+  connectText: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#FFFFFF',
     letterSpacing: 2,
+    marginTop: 4,
   },
 
   taglineText: {
-    fontSize: 14,
-    fontWeight: '400',
-    color: '#999999',
-    letterSpacing: 0.5,
-  },
-
-  // ===== SECCIÓN DE ANIMACIÓN =====
-  animationSection: {
-    alignItems: 'center',
-    gap: 24,
-    flex: 1,
-    justifyContent: 'center',
-  },
-
-  progressText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6B2D7A',
-    textAlign: 'center',
-    minHeight: 24,
-  },
-
-  // ===== PROGRESS BAR =====
-  progressBarContainer: {
-    width: '100%',
-    maxWidth: 300,
-    height: 4,
-    backgroundColor: '#EEEEEE',
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginBottom: 40,
-  },
-
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#E91E63',
-    borderRadius: 2,
-  },
-
-  // ===== FOOTER =====
-  footer: {
-    paddingBottom: 30,
-    alignItems: 'center',
-  },
-
-  footerText: {
     fontSize: 12,
-    color: '#CCCCCC',
-    fontWeight: '500',
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.8)',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+
+  // ===== LÍNEA DECORATIVA =====
+  decorativeLine: {
+    width: 80,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderRadius: 1,
+    marginTop: 8,
   },
 });

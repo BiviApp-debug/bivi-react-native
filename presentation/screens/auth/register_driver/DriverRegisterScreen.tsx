@@ -546,10 +546,7 @@ export default function DriverRegisterScreen({ navigation, route }: Props) {
       });
 
       // Navegar PRIMERO, luego mostrar éxito en la nueva pantalla
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'DriverLoginScreen' }],
-      });
+      navigation.navigate('UserLoginScreen')
 
     } catch (error: any) {
       console.error("❌ Error en handleVerifyCode:", error);

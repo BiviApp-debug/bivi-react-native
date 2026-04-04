@@ -59,7 +59,10 @@ export default function DriverLoginScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     if (authResponse.message === "Login exitoso") {
-      navigation.replace('DriverHomeScreen')
+       navigation.navigate("DriverHomeScreen", {
+                screen: "DriverProfileScreen",
+            });
+     
     }
   }, [authResponse])
 
@@ -96,9 +99,10 @@ export default function DriverLoginScreen({ navigation, route }: Props) {
         clearTimeout(timeout);
 
         if (ActivateUpdate) {
-          if (ActivateUpdate[0].updateapp == "true") {
+        
+     /*     if (ActivateUpdate[0].updateapp == "true") {
             SetshowUpdateButon(ActivateUpdate[0].updateapp)
-          }
+          }*/
         }
 
         setLoadingStatus("Verificando credenciales guardadas...");

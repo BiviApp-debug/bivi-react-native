@@ -17,8 +17,16 @@ import SplashScreen from "../screens/splahs/SplashScreen";
 import  { createDrawerNavigator } from "@react-navigation/drawer"
 import React from "react";
 import ChatScreen from "../screens/clientHome/ChatController/ChatScreen";
+import { AnalyticsScreen } from "../screens/userProfile/AnalyticsScreen";
+import MisionesScreen from "../screens/userProfile/MisionesScreen";
+import OfferDetailScreen from "../screens/userProfile/OfferDetailScreen";
+import ProfileDetailScreen from "../screens/userProfile/ProfileDetailScreen";
 
 export type RootStackParamList = {
+    OfferDetailScreen: undefined,
+    ProfileDetailScreen: undefined,
+    MisionesScreen: undefined,
+    AnalyticsScreen: undefined,
     UserLoginScreen: undefined,
     UserRegisterScreen: undefined,
     DriverLoginScreen: undefined,
@@ -68,6 +76,27 @@ export const MainStackNavigator = () => {
                   <Stack.Screen
                     name="DriverChatScreen"
                     component={DriverChatScreen}
+                    options={{ headerShown: false }}
+                />
+
+                  <Stack.Screen
+                    name="AnalyticsScreen"
+                    component={AnalyticsScreen}
+                    options={{ headerShown: false }}
+                />
+                  <Stack.Screen
+                    name="OfferDetailScreen"
+                    component={OfferDetailScreen}
+                    options={{ headerShown: false }}
+                />
+                  <Stack.Screen
+                    name="MisionesScreen"
+                    component={MisionesScreen}
+                    options={{ headerShown: false }}
+                />
+                  <Stack.Screen
+                    name="ProfileDetailScreen"
+                    component={ProfileDetailScreen}
                     options={{ headerShown: false }}
                 />
                 <Stack.Screen

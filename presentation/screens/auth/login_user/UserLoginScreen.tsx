@@ -1,4 +1,4 @@
-import { Image, View, Text, Alert, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
+import { Image, View, Text, Alert, TouchableOpacity, Modal, ScrollView, Platform } from 'react-native';
 import RoundedButton from '../../../components/RoundedButton';
 import DefaultTextInputUser from '../../../components/DefaultTextInputUser';
 import { StackScreenProps } from '@react-navigation/stack';
@@ -18,6 +18,8 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import ErrorModal from '../../../components/ErrorModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import SuccessModal from '../../../components/SuccessModal';
+import DefaultTextInputUserCountry from '../../../components/DefaultTextInputUserCountry';
+import { getCountries } from '../../../utils/getCountries';
 
 interface Props extends StackScreenProps<RootStackParamList, "UserLoginScreen"> { };
 
@@ -39,9 +41,16 @@ export default function UserLoginScreen({ navigation, route }: Props) {
 
     const { authResponse, setAuthResponse } = useContext(dataContext)
 
+    const [selectedCode, setSelectedCode] = useState("+57");
+    const [showCodes, setShowCodes] = useState(false);
+
+    const [countryCodes, setCountryCodes] = useState<any>([]);
+
     useEffect(() => {
         if (authResponse.message === "Login exitoso") {
-            navigation.replace('ClientHomeScreen')
+            navigation.navigate("ClientHomeScreen", {
+                screen: "UserProfileScreen",
+            });
         }
     }, [authResponse])
 
@@ -59,15 +68,16 @@ export default function UserLoginScreen({ navigation, route }: Props) {
                 clearTimeout(timeout);
 
                 if (ActivateUpdate) {
-                    if (ActivateUpdate[0].updateapp == "true") {
-                        SetshowUpdateButon(ActivateUpdate[0].updateapp)
-                    }
+
+                    /*  if (ActivateUpdate[0].updateapp == "true") {
+                          SetshowUpdateButon(ActivateUpdate[0].updateapp)
+                      }*/
                 }
 
                 setLoadingStatus("Verificando credenciales guardadas...");
                 let getStorage = await loadSavedPhone();
-                console.log(getStorage,"holas_stoage");
-                
+                console.log(getStorage, "holas_stoage");
+
                 if (getStorage && getStorage.includes("[storage-client]")) {
                     setLoadingStatus("Iniciando sesión automáticamente...");
                     setLoadingPayment(true);
@@ -96,6 +106,19 @@ export default function UserLoginScreen({ navigation, route }: Props) {
                     await AsyncStorage.removeItem('savedPhone');
                     setShowScreen(true);
                 }
+
+
+                let allcodes = await getCountries();
+                if (allcodes?.rows) {
+                    const formatted = allcodes.rows.map((row: any) => ({
+                        name: row[0],
+                        code: row[1],
+                        iso: row[2],
+                        coin: row[3],
+                    }));
+
+                    setCountryCodes(formatted);
+                }
             } catch (error) {
                 console.error("Error en carga inicial:", error);
                 setErrorMessage("Error al conectar con el servidor. Por favor intenta de nuevo.");
@@ -120,7 +143,7 @@ export default function UserLoginScreen({ navigation, route }: Props) {
             setShowErrorModal(true);
             return;
         }
-        
+
         if (!validatePhone(phone)) {
             setErrorMessage("El numero no es valido");
             setShowErrorModal(true);
@@ -130,9 +153,9 @@ export default function UserLoginScreen({ navigation, route }: Props) {
 
         try {
             setLoadingPayment(true);
-            
-            let login_response = await saveMessageToFirestore(phone, password);
-            console.log(login_response,"hols_Datos_estimados")
+
+            let login_response = await saveMessageToFirestore(selectedCode+phone, password);
+            // console.log(login_response, "hols_Datos_estimados")
             if (login_response && !login_response.__loginError) {
                 setAuthResponse(login_response);
             } else {
@@ -146,7 +169,7 @@ export default function UserLoginScreen({ navigation, route }: Props) {
                     setErrorMessage(serverMsg || "Credenciales incorrectas. Por favor verifica.");
                 }
                 setShowErrorModal(true);
-                
+
             }
         } catch (error) {
             setLoadingPayment(false);
@@ -181,46 +204,97 @@ export default function UserLoginScreen({ navigation, route }: Props) {
             extraScrollHeight={Platform.OS === 'android' ? 50 : 0}
         >
             <View style={styles.container}>
-                {/* Header con fondo púrpura */}
+                {/* Header BIVI Purple */}
                 <View style={styles.headerPurple}>
+                    <TouchableOpacity
+                        onPress={() => {
+                            navigation.navigate('DriverLoginScreen')
+                        }}
+                        style={styles.driverIconButton}
+                    >
+                        <Text style={styles.driverIcon}>👨‍💼</Text>
+                    </TouchableOpacity>
+
                     <Image
                         source={require("../../../../assets/bivi-bee-mascot.png")}
                         style={styles.logoHeader}
                     />
                     <Text style={styles.headerTitle}>Bienvenido de vuelta</Text>
-                    <Text style={styles.headerSubtitle}>Consumer Intelligence</Text>
+                    <Text style={styles.headerSubtitle}>BIVI CONNECT - Consumer Intelligence</Text>
                 </View>
 
-                {/* Contenedor del formulario */}
+                {/* Form Container */}
                 <View style={styles.formContainer}>
-                    
-                    {/* Campo de Teléfono */}
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.inputLabel}>Número de Teléfono</Text>
-                        <DefaultTextInputUser
-                            icon={require("../../../../assets/phone.png")}
-                            placeholder='3001234567'
-                            onChangeText={text => setPhone(text)}
-                            value={phone}
-                            keyBoarType='numeric'
-                            secureText={false}
-                        />
+                    {/* Tab Selection - Email/Teléfono */}
+                    <View style={styles.tabsContainer}>
+                        <TouchableOpacity style={styles.tabActive}>
+                            <Text style={styles.tabActiveText}>Login</Text>
+                        </TouchableOpacity>
                     </View>
 
-                    {/* Campo de Contraseña */}
-                    <View style={styles.inputGroup}>
+                    {/* Input Fields */}
+                    <View style={styles.inputsSection}>
+                        <Text style={styles.inputLabel}>Teléfono</Text>
+                        <View style={styles.countrySection}>
+                            <TouchableOpacity onPress={() => setShowCodes(true)}>
+                                <Text style={{ fontWeight: "normal", marginRight: 8 }}>
+                                    {selectedCode}
+                                </Text>
+                            </TouchableOpacity>
+                            <DefaultTextInputUserCountry
+                                icon={require("../../../../assets/phone.png")}
+                                placeholder={`000 000 0000`}
+                                onChangeText={text => setPhone(text)}
+                                value={phone}
+                                keyBoarType='numeric'
+                                secureText={false}
+                            />
+                        </View>
+
+
+                        <Modal visible={showCodes} transparent animationType="fade">
+                            <View style={styles.modalOverlay}>
+                                <View style={styles.modalContainer}>
+                                    <ScrollView>
+                                        {countryCodes.map((item: any, index: any) => (
+                                            <TouchableOpacity
+                                                key={index}
+                                                onPress={() => {
+                                                    setSelectedCode(item.code);
+                                                    setShowCodes(false);
+                                                }}
+                                                style={styles.countryItem}
+                                            >
+                                                <Text style={styles.countryText}>
+                                                    {item.name} ({item.code})
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+
+                                    <TouchableOpacity onPress={() => setShowCodes(false)}>
+                                        <Text style={styles.closeText}>Cerrar</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </Modal>
                         <Text style={styles.inputLabel}>Contraseña</Text>
                         <DefaultTextInputUserLogin
                             icon={require("../../../../assets/candado.png")}
                             placeholder='••••••••'
                             onChangeText={text => setPassword(text)}
                             value={password}
-                            keyBoarType='default'
+                            keyBoarType='numeric'
                             secureText={true}
                         />
                     </View>
 
-                    {/* Botón Login */}
+                    {/* Forgot Password Link */}
+                    <TouchableOpacity onPress={() => setShowResetModal(true)}>
+                        <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
+                    </TouchableOpacity>
+
+                    {/* Login Button */}
                     {showUpdateButon ? (
                         <RoundedButton
                             text="Actualizar"
@@ -229,7 +303,7 @@ export default function UserLoginScreen({ navigation, route }: Props) {
                         />
                     ) : (
                         <RoundedButton
-                            text={loadingPayment ? "Cargando..." : "Entrar a BIVI"}
+                            text={loadingPayment ? "Cargando" : "Entrar a BIVI"}
                             onPress={() => {
                                 handleLogin();
                             }}
@@ -237,28 +311,17 @@ export default function UserLoginScreen({ navigation, route }: Props) {
                         />
                     )}
 
-                    {/* Recuperar contraseña */}
-                    <TouchableOpacity 
-                        style={styles.forgotPasswordContainer}
-                        onPress={() => setShowResetModal(true)}
-                    >
-                        <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
-                    </TouchableOpacity>
-
-                    {/* Registro */}
+                    {/* Register Link */}
                     <View style={styles.registerContainer}>
-                        <Text style={styles.registerText}>¿No tienes cuenta?</Text>
-                        <TouchableOpacity 
-                            onPress={() => navigation.navigate('UserRegisterScreen')}
-                            style={styles.registerButton}
-                        >
-                            <Text style={styles.registerButtonText}>Regístrate gratis</Text>
+                        <Text style={styles.registerText}>¿Sin cuenta? </Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('UserRegisterScreen')}>
+                            <Text style={styles.registerLink}>Regístrate gratis</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
 
-                {/* Modales */}
                 <ResetPasswordModalUser
+                countryCode={selectedCode}
                     visible={showResetModal}
                     onClose={() => setShowResetModal(false)}
                     onSuccess={async (resetPhone, resetPassword) => {

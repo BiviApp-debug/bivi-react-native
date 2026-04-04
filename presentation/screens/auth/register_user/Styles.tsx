@@ -10,12 +10,12 @@ const styles = StyleSheet.create({
   // ===== HEADER PÚRPURA =====
   headerPurple: {
     backgroundColor: '#6B2D7A',
-    paddingTop: 100,
+    paddingTop: 80,
     paddingBottom: 40,
     paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     shadowColor: '#6B2D7A',
@@ -23,9 +23,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 5,
+    position: 'relative',
   },
 
-  backButton: {
+  back_button: {
+    position: 'absolute',
+    left: 20,
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -34,10 +37,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
 
-  backButtonText: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    fontWeight: '600',
+  back_img: {
+    
+    height: 20,
   },
 
   headerTitle: {
@@ -45,8 +47,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 1,
-    flex: 1,
-    textAlign: 'center',
   },
 
   // ===== PROGRESS BAR =====
@@ -65,44 +65,25 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: '#E91E63',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
   },
 
   // ===== WRAPPER DE PASOS =====
   stepsWrapper: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 30,
+    paddingVertical: 20,
+    justifyContent: 'space-between',
   },
 
   // ===== CONTENEDOR DE PASO =====
   stepContainer: {
-    gap: 10,
     justifyContent: 'space-between',
-  },
-  
-  back_button: {
-    position: "absolute",
-    bottom: 18,
-    left: 25,
-    width: 35,
-    height: 35,
-    borderRadius: 50,
-    padding: 0,
-    backgroundColor: 'transparent',
-  },
-  back_img: {},
-  imageUSer: {
-    width: 80,
-    height: 80
   },
 
   // ===== HEADER DE PASO =====
   stepHeader: {
-    marginTop: 20,
-    marginBottom: 10,
+     marginTop: 20,
+    marginBottom: 20,
   },
 
   stepNumber: {
@@ -111,6 +92,7 @@ const styles = StyleSheet.create({
     color: '#E91E63',
     letterSpacing: 0.5,
     marginBottom: 10,
+    textTransform: 'uppercase',
   },
 
   stepTitle: {
@@ -129,13 +111,12 @@ const styles = StyleSheet.create({
 
   // ===== INPUTS CONTAINER =====
   inputsContainer: {
-   
-    gap:8,
+    gap: 16,
     justifyContent: 'flex-start',
   },
 
   inputLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#333333',
     marginBottom: 8,
@@ -143,17 +124,56 @@ const styles = StyleSheet.create({
 
   helperText: {
     fontSize: 12,
-    color: '#999999',
+    color: '#E91E63',
     fontWeight: '500',
     marginTop: 8,
+  },
+
+  // ===== PREFERENCIAS =====
+  preferenceTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333333',
+    marginBottom: 12,
+  },
+
+  preferencesGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 20,
+  },
+
+  preferenceTag: {
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  preferenceTagSelected: {
+    backgroundColor: '#E91E63',
+    borderColor: '#E91E63',
+  },
+
+  preferenceTagText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#666666',
+  },
+
+  preferenceTagTextSelected: {
+    color: '#FFFFFF',
   },
 
   // ===== FOOTER DE PASO =====
   stepFooter: {
-    marginTop: 20,
     paddingTop: 20,
+    paddingBottom: 50,
     borderTopWidth: 1,
     borderTopColor: '#EEEEEE',
   },
@@ -163,7 +183,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
 
@@ -171,14 +191,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 20,
     padding: 30,
-    gap: 18,
-    width: '95%',
+    width: '100%',
     maxWidth: 400,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
@@ -186,37 +202,23 @@ const styles = StyleSheet.create({
 
   modalTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 15,
+    fontWeight: '700',
+    color: '#333333',
+    marginBottom: 12,
     textAlign: 'center',
-    color: '#040404',
   },
 
   modalText: {
-    fontSize: 17,
-    width: "80%",
-    margin: "auto",
-    fontWeight: "300",
-    marginBottom: 25,
+    fontSize: 14,
+    color: '#666666',
     textAlign: 'center',
-    color: '#666',
-    lineHeight: 22,
-  },
-
-  imageCheckIcon: {
-    margin: "auto",
-    width: 50,
-    height: 50
+    marginBottom: 24,
+    lineHeight: 20,
   },
 
   modalButtons: {
     marginTop: 20,
-    gap: 15,
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    width: "100%",
-    alignItems: "center"
+    gap: 12,
   },
 
   cancelButton: {
@@ -228,7 +230,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#E91E63',
     fontWeight: '600',
-  }
+  },
 });
 
 export default styles;

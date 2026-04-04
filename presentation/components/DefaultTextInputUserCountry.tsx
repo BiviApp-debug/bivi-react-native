@@ -9,13 +9,10 @@ interface Props {
   secureText: boolean
 }
 
-const DefaultTextInputDriverBlack = ({ placeholder, value, onChangeText, keyBoarType, icon, secureText }: Props) => {
+const DefaultTextInputUserCountry = ({ placeholder, value, onChangeText, keyBoarType, icon, secureText }: Props) => {
   return (
     <View style={styles.containterTextInput}>
-      <Image
-        source={icon}
-        style={styles.imageTextIcon}
-      />
+
       <TextInput
         style={styles.textInput}
         placeholder={placeholder}
@@ -36,31 +33,28 @@ const styles = StyleSheet.create({
     display: "flex",
     flexDirection: "row",
     alignItems: "center",
-    height: 58,
-    width: "98%",
-    margin: "auto",
-    borderRadius: 8,
-    backgroundColor: "white",
-  borderWidth: 1,
-  borderColor: "#D3D3D3",
-    position:"relative"
+    height: 50,
+    width: "90%",
+
   },
   textInput: {
     color: "black",
     width: "100%",
     fontSize: 16,
-    paddingLeft: 0,
+    backgroundColor: "#ffffff31",
+    borderRadius: 8,
+    paddingLeft: 20,
+    paddingHorizontal: 20,
+    height: 50,
+  borderWidth: 1,
+  borderColor: "#D3D3D3",
     textAlign: "left",
-     paddingStart:12,
-    margin:0  
+     paddingStart:12
   },
   imageTextIcon: {
     width: 20,
     height: 20,
-    marginRight: 0,
-    marginLeft:10,
-    position:"absolute",
-    left:20
+    marginRight: 15,
   },
   textButton: {
     color: "white",
@@ -69,4 +63,4 @@ const styles = StyleSheet.create({
   }
 })
 
-export default DefaultTextInputDriverBlack
+export default DefaultTextInputUserCountry

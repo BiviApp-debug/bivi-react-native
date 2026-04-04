@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
     Modal,
     View,
@@ -7,6 +7,7 @@ import {
     StyleSheet,
     Image,
     StatusBar,
+    Animated,
 } from 'react-native';
 
 interface Props {
@@ -20,62 +21,61 @@ interface Props {
 
 export default function WelcomeModal({
     visible,
-    title = '¡Bienvenido',
-    subtitle = 'Cliente UBERO!',
-    buttonText = 'OK',
+    title = '¡Bienvenido a',
+    subtitle = 'BIVI CONNECT!',
+    buttonText = 'Continuar',
     onClose,
-    icon = 'car',
+    icon = 'check',
 }: Props) {
+    const scaleAnim = new Animated.Value(0);
 
-    const getIcon = () => {
-        switch (icon) {
-            case 'car':
-                return '🚗';
-            case 'moto':
-                return '🏍️';
-            case 'user':
-                return '👤';
-            case 'check':
-                return '✓';
-            case 'warning':
-                return '⚠️';
-            default:
-                return '🚗';
+    useEffect(() => {
+        if (visible) {
+            Animated.spring(scaleAnim, {
+                toValue: 1,
+                friction: 6,
+                tension: 40,
+                useNativeDriver: true,
+            }).start();
+        } else {
+            scaleAnim.setValue(0);
         }
-    };
+    }, [visible]);
 
     return (
         <Modal
             visible={visible}
-            transparent={false} // ✅ Cambiado a false para ocupar toda la pantalla
+            transparent={true}
             animationType="fade"
             onRequestClose={onClose}
-            statusBarTranslucent // ✅ Para que cubra el status bar
+            statusBarTranslucent
         >
-            {/* ✅ Ocultar status bar */}
-            <StatusBar hidden />
+            <StatusBar barStyle="light-content" hidden={false} />
             
-            {/* ✅ Contenedor principal que ocupa todo */}
+            {/* Fondo oscuro */}
             <View style={styles.fullScreen}>
-                {/* Header amarillo con logo */}
-                <View style={styles.header}>
-                    <Image
-                        source={require('../../../../assets/logo.png')}
-                        style={styles.logo}
-                    />
-                    <Image
-                        source={require('../../../../assets/moto_icon.png')}
-                        style={styles.moto}
-                    />
-                </View>
-
                 {/* Overlay oscuro */}
                 <View style={styles.overlay}>
-                    {/* Modal blanco */}
-                    <View style={styles.container}>
+                    {/* Modal animado */}
+                    <Animated.View
+                        style={[
+                            styles.container,
+                            {
+                                transform: [{ scale: scaleAnim }],
+                            },
+                        ]}
+                    >
+                        {/* Decoración superior - círculos */}
+                        <View style={styles.decorationTop}>
+                            <View style={[styles.circle, styles.circleLarge]} />
+                            <View style={[styles.circle, styles.circleSmall]} />
+                        </View>
+
+                        {/* Logo de la abeja BIVI */}
                         <Image
-                            source={require('../../../../assets/modal_car_icon.png')}
-                            style={styles.auto}
+                            source={require('../../../../assets/bivi-bee-mascot.png')}
+                            style={styles.beeImage}
+                            resizeMode="contain"
                         />
 
                         {/* Título */}
@@ -84,7 +84,12 @@ export default function WelcomeModal({
                         {/* Subtítulo */}
                         <Text style={styles.subtitle}>{subtitle}</Text>
 
-                        {/* Botón OK */}
+                        {/* Texto de bienvenida */}
+                        <Text style={styles.welcomeText}>
+                            Estamos emocionados de tenerte con nosotros. 🎉
+                        </Text>
+
+                        {/* Botón */}
                         <TouchableOpacity
                             style={styles.button}
                             onPress={onClose}
@@ -92,7 +97,10 @@ export default function WelcomeModal({
                         >
                             <Text style={styles.buttonText}>{buttonText}</Text>
                         </TouchableOpacity>
-                    </View>
+
+                        {/* Decoración inferior - línea */}
+                        <View style={styles.decorationBottom} />
+                    </Animated.View>
                 </View>
             </View>
         </Modal>
@@ -102,89 +110,108 @@ export default function WelcomeModal({
 const styles = StyleSheet.create({
     fullScreen: {
         flex: 1,
-        backgroundColor: '#000',
-    },
-    header: {
-        backgroundColor: '#FFCC28',
-        paddingTop: 50, 
-        paddingBottom: 0,
-        paddingHorizontal: 20,
-        alignItems: 'center',
-    },
-    auto: {
-        width: 60,
-        height: 60,
-        marginBottom: 0,
-    },
-    logo: {
-        width: 150,
-        height: 150,
-        borderRadius: 75,
-        marginBottom: 10,
-    },
-    moto: {
-        width: 70,
-        height: 60,
-        position: 'absolute',
-        left: 20,
-        bottom: -6,
+        backgroundColor: 'transparent',
     },
     overlay: {
         flex: 1,
-        backgroundColor: '#000',
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 20,
     },
     container: {
-        backgroundColor: '#FFF',
-        borderRadius: 20,
-        padding: 30,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 25,
+        padding: 40,
         width: '100%',
-        maxHeight: '100%',
+        maxWidth: 350,
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
+        shadowColor: '#E91E63',
+        shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 10,
-        marginBottom: 50,
-        height: '70%',
+        shadowRadius: 20,
+        elevation: 15,
+    },
+    decorationTop: {
+        position: 'absolute',
+        top: -30,
+        width: '100%',
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        paddingHorizontal: 20,
+    },
+    circle: {
+        borderRadius: 50,
+    },
+    circleLarge: {
+        width: 60,
+        height: 60,
+        backgroundColor: '#E91E63',
+        opacity: 0.2,
+    },
+    circleSmall: {
+        width: 40,
+        height: 40,
+        backgroundColor: '#9C27B0',
+        opacity: 0.15,
+    },
+    beeImage: {
+        width: 120,
+        height: 120,
+        marginBottom: 20,
+        marginTop: 20,
     },
     title: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#000',
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#666666',
         textAlign: 'center',
-        marginBottom: 4,
+        marginBottom: 0,
+        letterSpacing: 0.5,
     },
     subtitle: {
         fontSize: 32,
         fontWeight: '800',
-        color: '#000',
+        color: '#E91E63',
         textAlign: 'center',
-        width: "90%",
-        marginBottom: 60,
-        lineHeight: 60,
+        marginBottom: 16,
+        lineHeight: 40,
         letterSpacing: 1,
     },
-    button: {
-          display:'none',
-        backgroundColor: '#FFCC28',
-        paddingVertical: 12,
-        paddingHorizontal: 40,
-        borderRadius: 8,
-        minWidth: 120,
-        shadowColor: '#FFCC28',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 3,
+    welcomeText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#999999',
+        textAlign: 'center',
+        marginBottom: 30,
+        lineHeight: 20,
+        paddingHorizontal: 10,
     },
-    buttonText: {      
-        color: '#000',
+    button: {
+        backgroundColor: '#E91E63',
+        paddingVertical: 14,
+        paddingHorizontal: 50,
+        borderRadius: 12,
+        minWidth: 200,
+        shadowColor: '#E91E63',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    buttonText: {
+        color: '#FFFFFF',
         fontSize: 16,
         fontWeight: '700',
         textAlign: 'center',
+        letterSpacing: 0.5,
+    },
+    decorationBottom: {
+        marginTop: 20,
+        width: 50,
+        height: 4,
+        backgroundColor: '#E91E63',
+        borderRadius: 2,
+        opacity: 0.3,
     },
 });

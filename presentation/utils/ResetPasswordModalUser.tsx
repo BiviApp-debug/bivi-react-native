@@ -26,6 +26,7 @@ import SuccessModal from '../components/SuccessModal';
 import * as Notifications from 'expo-notifications';
 
 interface Props {
+    countryCode: string;
     visible: boolean;
     onClose: () => void;
     onSuccess: (phone: string, newPassword: string) => void;
@@ -42,10 +43,12 @@ Notifications.setNotificationHandler({
 });
 
 export default function ResetPasswordModalUser({
+    countryCode,
     visible,
     onClose,
     onSuccess,
 }: Props) {
+
     const [step, setStep] = useState<Step>('phone');
     const [phone, setPhone] = useState('');
     const [verificationCode, setVerificationCode] = useState('');
@@ -171,7 +174,7 @@ export default function ResetPasswordModalUser({
         try {
             setLoading(true);
 
-            let verifyUserbyPhone = await getUserByPhone(phone)
+            let verifyUserbyPhone = await getUserByPhone(`${countryCode}${phone}`)
 
             if (!verifyUserbyPhone) {
                 setErrorMessage("No existe en la data");
@@ -180,7 +183,7 @@ export default function ResetPasswordModalUser({
                 const code = generateCode();
                 setVerificationCode(code);
 
-                const response = await enviarSMS(phone, code);
+                const response = await enviarSMS(`${countryCode}${phone}`, code);
 
                 if (response) {
 
@@ -249,15 +252,15 @@ export default function ResetPasswordModalUser({
 
         try {
             setLoading(true);
-
+          
             const result = await ResetPasswordUSer({
-                phone,
+               phone: `${countryCode}${phone}`, 
                 newPassword,
             });
 
             if (result.success) {
                 setSuccessMessage(`✅ Contraseña actualizada`);
-                await AsyncStorage.setItem('savedPhone', `${phone}[storage-client]${newPassword}`);
+                await AsyncStorage.setItem('savedPhone', `${countryCode}${phone}[storage-client]${newPassword}`);
                 setShowSuccessModal(true);
                 setTimeout(() => {
                     handleClose();
@@ -307,7 +310,7 @@ export default function ResetPasswordModalUser({
                                 style={styles.input}
                                 placeholder="Número de teléfono"
                                 placeholderTextColor="#999"
-                                value={phone}
+                                value={`${phone}`}
                                 onChangeText={setPhone}
                                 keyboardType="phone-pad"
                                 maxLength={10}
@@ -401,7 +404,7 @@ export default function ResetPasswordModalUser({
                                 placeholderTextColor="#999"
                                 value={newPassword}
                                 onChangeText={setNewPassword}
-                                keyboardType={'default'}
+                                keyboardType={'numeric'}
                                 secureTextEntry={!showNewPassword}
                             />
                             <TouchableOpacity
@@ -429,7 +432,7 @@ export default function ResetPasswordModalUser({
                                 value={confirmPassword}
                                 onChangeText={setConfirmPassword}
                                 secureTextEntry={!showConfirmPassword}
-                                keyboardType={'default'}
+                                keyboardType={'numeric'}
                             />
                             <TouchableOpacity
                                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}

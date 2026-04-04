@@ -19,7 +19,7 @@ const STATES = {
 
 export const AnimatedBee = ({
   state = "idle",
-  size = 64,
+  size = 264,
   showLabel = false,
   label,
   imageSrc,

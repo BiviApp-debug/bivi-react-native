@@ -6,7 +6,7 @@ export const COLORS = {
   primaryLight: '#FFD633',   // Amarillo más claro
   
   // Colores de fondo
-  background: '#000000',     // Negro principal
+  background: '#fff',     // Negro principal
   backgroundLight: '#1a1a1a', // Negro claro para cards
   backgroundMedium: '#333333', // Gris oscuro para elementos
   

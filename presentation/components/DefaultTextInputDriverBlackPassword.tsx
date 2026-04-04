@@ -31,12 +31,7 @@ const DefaultTextInputDriverBlackPassword = ({
 
   return (
     <View style={styles.containterTextInput}>
-      {icon && (
-        <Image
-          source={icon}
-          style={styles.imageTextIcon}
-        />
-      )}
+     
 
       <TextInput
         style={styles.textInput}
@@ -58,7 +53,7 @@ const DefaultTextInputDriverBlackPassword = ({
           <Ionicons
             name={secure ? 'eye-off-outline' : 'eye-outline'}
             size={22}
-            color="white"
+            color="black"
           />
         </TouchableOpacity>
       )}
@@ -82,11 +77,11 @@ const styles = StyleSheet.create({
   
   borderWidth: 1,
   borderColor: "#D3D3D3", 
-    backgroundColor: "black",
+    backgroundColor: "white",
     position:"relative"
   },
   textInput: {
-    color: "white",
+    color: "black",
     width: "100%",
     fontSize: 16,
     paddingLeft: 0,
