@@ -20,84 +20,92 @@ import { dataContext } from '../../context/Authcontext';
 
 type Props = StackScreenProps<RootStackParamList, 'SurveyDetailScreen'>;
 
-interface Answer {
-  questionId: number;
-  answer: any;
-}
+interface SurveyDetailScreenProps extends Readonly<Props> {}
 
-export default function SurveyDetailScreen({ route, navigation }: Props) {
+export default function SurveyDetailScreen({ route, navigation }: Readonly<Props>) {
   const { survey: initialSurvey } = route.params;
   const [survey, setSurvey] = useState(initialSurvey);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [completed, setCompleted] = useState(false);
-  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [answers, setAnswers] = useState<Record<number, any>>({});
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [userPhone, setUserPhone] = useState('');
 
-   const { authResponse } = useContext(dataContext);
+  const { authResponse } = useContext(dataContext);
   
-    useEffect(()=>{
-  setUserPhone(authResponse?.usuario?.phone || "")
-    },[authResponse])
+  useEffect(() => {
+    if (authResponse?.usuario?.phone) {
+      setUserPhone(authResponse.usuario.phone);
+    }
+  }, [authResponse]);
 
   useEffect(() => {
     const getUserData = async () => {
-      const phone = await AsyncStorage.getItem('userPhone');
-      if (phone) {
-        setUserPhone(phone);
-        await loadSurveyData(phone);
-        checkIfCompleted(phone);
-      } else {
+      try {
+        let phone = userPhone;
+        if (!phone) {
+          phone = await AsyncStorage.getItem('userPhone') || '';
+          if (phone) {
+            setUserPhone(phone);
+          }
+        }
+        if (phone) {
+          await loadSurveyData(phone);
+          await checkIfCompleted(phone);
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      } finally {
         setDataLoading(false);
       }
     };
     getUserData();
-    console.log("holas_mis_datos_45");
-    
-  }, []);
+  }, [userPhone]);
 
   const loadSurveyData = async (phone: string) => {
     try {
       const surveysRes = await getSurveys(phone);
       if (surveysRes.success && surveysRes.data) {
-        const foundSurvey = surveysRes.data.find((s:any) => s.id === initialSurvey.id);
+        const foundSurvey = surveysRes.data.find((s: any) => s.id === initialSurvey.id);
         if (foundSurvey) {
-            console.log(foundSurvey,"holas_survey");
-            
           setSurvey(foundSurvey);
 
-          // Inicializar respuestas
+          // Inicializar respuestas como objeto para mejor mapeo
           if (foundSurvey.questions) {
-            const initialAnswers = foundSurvey.questions.map((q: any) => ({
-              questionId: q.id,
-              answer: q.type === 'yes_no' ? false : (q.type === 'text' ? '' : null),
-            }));
+            const initialAnswers: Record<number, any> = {};
+            foundSurvey.questions.forEach((q: any) => {
+              const defaultValue = getDefaultAnswerValue(q.type);
+              initialAnswers[q.id] = defaultValue;
+            });
             setAnswers(initialAnswers);
           }
         }
       }
     } catch (error) {
       console.error('Error loading survey data:', error);
-    } finally {
-      setDataLoading(false);
     }
   };
 
   const checkIfCompleted = async (phone: string) => {
-    const history = await getUserSurveyHistory(phone);
-    if (history.success && history.data) {
-      const alreadyCompleted = history.data.some((h: any) => h.surveyId === survey.id);
-      setCompleted(alreadyCompleted);
+    try {
+      const history = await getUserSurveyHistory(phone);
+      if (history.success && history.data) {
+        const alreadyCompleted = history.data.some((h: any) => h.surveyId === initialSurvey.id);
+        setCompleted(alreadyCompleted);
+      }
+    } catch (error) {
+      console.error('Error checking completion:', error);
     }
   };
 
   const handleAnswerChange = (questionId: number, answer: any) => {
-    setAnswers(prev =>
-      prev.map(a => a.questionId === questionId ? { ...a, answer } : a)
-    );
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: answer
+    }));
   };
 
   const handleRating = (questionId: number, rating: number) => {
@@ -116,12 +124,18 @@ export default function SurveyDetailScreen({ route, navigation }: Props) {
     handleAnswerChange(questionId, text);
   };
 
+  const getDefaultAnswerValue = (type: string): any => {
+    if (type === 'yes_no') return null;
+    if (type === 'text') return '';
+    return null;
+  };
+
   const isFormValid = () => {
     if (!survey.questions) return true;
     return survey.questions.every((q: any) => {
-      const answer = answers.find(a => a.questionId === q.id)?.answer;
+      const answer = answers[q.id];
       if (q.required) {
-        if (q.type === 'text') return answer && answer.trim().length > 0;
+        if (q.type === 'text') return answer?.trim?.()?.length > 0;
         if (q.type === 'yes_no') return answer !== null && answer !== undefined;
         return answer !== null && answer !== undefined;
       }
@@ -150,10 +164,20 @@ export default function SurveyDetailScreen({ route, navigation }: Props) {
     setLoading(true);
 
     try {
-      const formattedAnswers = answers.map(a => ({
-        questionId: a.questionId,
-        answer: a.answer,
-      }));
+      // Convertir objeto de respuestas al formato requerido
+      const formattedAnswers = survey.questions?.map((q: any) => ({
+        questionId: q.id,
+        questionText: q.question,
+        answer: answers[q.id],
+        type: q.type,
+      })) || [];
+
+      console.log('📝 Enviando respuestas de encuesta:', {
+        userPhone,
+        surveyId: survey.id,
+        telecomCompanyNit: survey.telecomCompanyNit,
+        answersCount: formattedAnswers.length
+      });
 
       const result = await completeSurvey(userPhone, survey.id, formattedAnswers);
 
@@ -168,6 +192,7 @@ export default function SurveyDetailScreen({ route, navigation }: Props) {
         setShowError(true);
       }
     } catch (error: any) {
+      console.error('❌ Error:', error);
       setErrorMessage(error.message);
       setShowError(true);
     } finally {
@@ -176,7 +201,7 @@ export default function SurveyDetailScreen({ route, navigation }: Props) {
   };
 
   const renderQuestion = (question: any) => {
-    const currentAnswer = answers.find(a => a.questionId === question.id)?.answer;
+    const currentAnswer = answers[question.id];
 
     switch (question.type) {
       case 'rating':
@@ -239,7 +264,14 @@ export default function SurveyDetailScreen({ route, navigation }: Props) {
               ]}
               onPress={() => handleYesNo(question.id, true)}
             >
-              <Text style={styles.yesNoText}>Sí</Text>
+              <Text
+                style={[
+                  styles.yesNoText,
+                  currentAnswer === true && styles.yesNoTextActive,
+                ]}
+              >
+                Sí
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -248,7 +280,14 @@ export default function SurveyDetailScreen({ route, navigation }: Props) {
               ]}
               onPress={() => handleYesNo(question.id, false)}
             >
-              <Text style={styles.yesNoText}>No</Text>
+              <Text
+                style={[
+                  styles.yesNoText,
+                  currentAnswer === false && styles.yesNoTextActive,
+                ]}
+              >
+                No
+              </Text>
             </TouchableOpacity>
           </View>
         );
@@ -269,6 +308,15 @@ export default function SurveyDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  if (dataLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Cargando encuesta...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -280,8 +328,8 @@ export default function SurveyDetailScreen({ route, navigation }: Props) {
       <View style={styles.content}>
         <Text style={styles.description}>{survey.description}</Text>
         
-        {survey.fullDescription && (
-          <Text style={styles.fullDescription}>{survey.fullDescription}</Text>
+        {(survey.fullDescription || survey.full_description) && (
+          <Text style={styles.fullDescription}>{survey.fullDescription || survey.full_description}</Text>
         )}
 
         <View style={styles.questionsContainer}>
@@ -336,6 +384,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: COLORS.textDark,
+    fontWeight: '500',
+  },
   header: {
     backgroundColor: COLORS.primary,
     padding: 20,
@@ -375,6 +435,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 20,
+    fontStyle: 'italic',
   },
   questionsContainer: {
     marginBottom: 24,
@@ -397,111 +458,128 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   questionText: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
     color: '#333',
     marginBottom: 12,
+    lineHeight: 22,
   },
   required: {
-    color: 'red',
+    color: '#e74c3c',
+    fontWeight: 'bold',
   },
   ratingContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: 8,
+    marginTop: 12,
+    paddingHorizontal: 8,
   },
   ratingButton: {
-    width: 45,
-    height: 45,
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
   ratingButtonActive: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   ratingText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#666',
   },
   ratingTextActive: {
-    color: COLORS.textDark,
+    color: '#fff',
+    fontWeight: '800',
   },
   optionButton: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#f5f5f5',
     borderRadius: 8,
-    marginBottom: 8,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
   },
   optionButtonActive: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   optionText: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 15,
+    color: '#333',
+    fontWeight: '500',
   },
   optionTextActive: {
-    color: COLORS.textDark,
-    fontWeight: '600',
+    color: '#fff',
+    fontWeight: '700',
   },
   yesNoContainer: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 8,
+    marginTop: 12,
   },
   yesNoButton: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#f5f5f5',
     borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
   },
   yesNoButtonActive: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   yesNoText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
+    color: '#333',
+  },
+  yesNoTextActive: {
+    color: '#fff',
+    fontWeight: '700',
   },
   textInput: {
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
     fontSize: 14,
     color: '#333',
-    minHeight: 80,
+    minHeight: 100,
     textAlignVertical: 'top',
     marginTop: 8,
+    fontFamily: 'System',
   },
   submitButton: {
     backgroundColor: COLORS.primary,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 20,
+    marginBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   disabledButton: {
     backgroundColor: '#ccc',
+    opacity: 0.6,
   },
   submitButtonText: {
-    color: COLORS.textDark,
+    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 100,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: COLORS.textSecondary,
+    letterSpacing: 0.5,
   },
 });

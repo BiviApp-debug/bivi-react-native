@@ -1693,12 +1693,15 @@ export interface Survey {
   title: string;
   description: string;
   fullDescription?: string;
+  full_description?: string;
   reward_points: number;
+  reward?: string;
   duration: string;
   questions?: SurveyQuestion[];
   icon: string;
   status: "active" | "inactive";
   preferences?: PreferencesData;
+  telecomCompanyNit?: string;
   createdAt?: string;
   updatedAt?: string;
 }
