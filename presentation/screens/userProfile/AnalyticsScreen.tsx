@@ -18,12 +18,7 @@ import {
 import { StackScreenProps } from "@react-navigation/stack";
 import { RootStackParamList } from "../../navigator/MainStackNavigator";
 
-interface AnalyticsProps {
-  onBack: () => void;
-  userPhone: string;
-  telecomCompanyNit: string;
-  telecomCompany: any;
-}
+
 
 interface AnalyticsSummary {
   totalPoints: number;
@@ -51,15 +46,9 @@ interface RedemptionItem {
   approvedAt?: string;
 }
 
-
-interface Props extends StackScreenProps<RootStackParamList, "AnalyticsScreen"> { }
-
-export const AnalyticsScreen: React.FC<AnalyticsProps> = ({
-  onBack,
-  userPhone,
-  telecomCompanyNit,
-  telecomCompany,
-}) => {
+const AnalyticsScreen = ({ route, navigation }: Props) => {
+  const { userPhone, telecomCompanyNit, telecomCompany } = route.params;
+  const onBack = () => navigation.goBack();
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [history, setHistory] = useState<ActivityItem[]>([]);
   const [redemptions, setRedemptions] = useState<RedemptionItem[]>([]);
@@ -395,6 +384,8 @@ export const AnalyticsScreen: React.FC<AnalyticsProps> = ({
     </View>
   );
 };
+
+export default AnalyticsScreen;
 
 const styles = StyleSheet.create({
   container: {

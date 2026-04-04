@@ -125,7 +125,7 @@ export const loadCompleteUserData = async (
 
     // ===== PASO 3: OBTENER MISIONES =====
     console.log("3️⃣ Obteniendo misiones...");
-    const missionsResult = await getMissions();
+    const missionsResult = await getMissions(userPhone);
 
     let missions: Mission[] = [];
 
@@ -166,7 +166,7 @@ export const loadCompleteUserData = async (
 
     // ===== PASO 4: OBTENER OFERTAS/VIDEOS =====
     console.log("4️⃣ Obteniendo ofertas/videos...");
-    const offersResult = await getOffers();
+    const offersResult = await getOffers(userPhone);
 
     let offers: Offer[] = [];
 

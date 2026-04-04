@@ -17,16 +17,36 @@ import SplashScreen from "../screens/splahs/SplashScreen";
 import  { createDrawerNavigator } from "@react-navigation/drawer"
 import React from "react";
 import ChatScreen from "../screens/clientHome/ChatController/ChatScreen";
-import { AnalyticsScreen } from "../screens/userProfile/AnalyticsScreen";
-import MisionesScreen from "../screens/userProfile/MisionesScreen";
-import OfferDetailScreen from "../screens/userProfile/OfferDetailScreen";
-import ProfileDetailScreen from "../screens/userProfile/ProfileDetailScreen";
+import MissionDetailScreen from "../screens/userProfile/MissionDetailScreen";
+import VideoDetailScreen from '../screens/userProfile/VideoDetailScreen';
+import SurveyDetailScreen from '../screens/userProfile/SurveyDetailScreen';
+import GameDetailScreen from '../screens/userProfile/GameDetailScreen';
+import ProfileDetailScreen from '../screens/userProfile/ProfileDetailScreen';
+import AnalyticsScreen from '../screens/userProfile/AnalyticsScreen';
+import { TelecomCompany, Mission, Offer, Survey, Game } from '../screens/userProfile/Biviconnectapi';
 
 export type RootStackParamList = {
-    OfferDetailScreen: undefined,
-    ProfileDetailScreen: undefined,
-    MisionesScreen: undefined,
-    AnalyticsScreen: undefined,
+    ProfileDetailScreen: {
+        profile: any;
+        profilePhotoUrl: string | null;
+        company?: TelecomCompany | null;
+    },
+    GameDetailScreen: {
+        game: Game;
+        userPhone: string;
+    },
+    MissionDetailScreen: {
+        mission: Mission;
+        userPhone: string;
+    },
+    VideoDetailScreen: {
+        offer: Offer;
+        userPhone: string;
+    },
+    SurveyDetailScreen: {
+        survey: Survey;
+        userPhone: string;
+    },
     UserLoginScreen: undefined,
     UserRegisterScreen: undefined,
     DriverLoginScreen: undefined,
@@ -42,6 +62,11 @@ export type RootStackParamList = {
     UserChatScreen: { preAcceptClientId?: string; preAcceptDriverPhone?: string } | undefined,
     DriverChatScreen: undefined,
     DriverTripHistoryScreen: undefined,
+    AnalyticsScreen: {
+        userPhone: string;
+        telecomCompanyNit: string;
+        telecomCompany: any;
+    },
 }
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -80,23 +105,28 @@ export const MainStackNavigator = () => {
                 />
 
                   <Stack.Screen
-                    name="AnalyticsScreen"
-                    component={AnalyticsScreen}
+                    name="MissionDetailScreen"
+                    component={MissionDetailScreen}
                     options={{ headerShown: false }}
                 />
                   <Stack.Screen
-                    name="OfferDetailScreen"
-                    component={OfferDetailScreen}
+                    name="VideoDetailScreen"
+                    component={VideoDetailScreen}
                     options={{ headerShown: false }}
                 />
                   <Stack.Screen
-                    name="MisionesScreen"
-                    component={MisionesScreen}
+                    name="SurveyDetailScreen"
+                    component={SurveyDetailScreen}
                     options={{ headerShown: false }}
                 />
                   <Stack.Screen
                     name="ProfileDetailScreen"
                     component={ProfileDetailScreen}
+                    options={{ headerShown: false }}
+                />
+                  <Stack.Screen
+                    name="GameDetailScreen"
+                    component={GameDetailScreen}
                     options={{ headerShown: false }}
                 />
                 <Stack.Screen
@@ -116,6 +146,11 @@ export const MainStackNavigator = () => {
                  <Stack.Screen
                     name="ClientHomeScreen"
                     component={ClientDrawerNavigator}
+                    options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                    name="AnalyticsScreen"
+                    component={AnalyticsScreen}
                     options={{ headerShown: false }}
                 />
                 <Stack.Screen

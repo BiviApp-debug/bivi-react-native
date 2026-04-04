@@ -2,12 +2,15 @@ import { Alert } from 'react-native';
 import { API_BASE_URL } from '../../../API/API';
 import { savePhone } from '../../../utils/SavedPhoneFunctios';
 
-export const saveMessageToFirestore = async (
-   
+export const saveMessageToFirestore = async (   
   phone: string,
   password: string
 ): Promise<any> => {
  
+
+  console.log(phone,password,"mis_datas_user");
+
+
   try {
     const response = await fetch(`${API_BASE_URL}/login`, {
       method: 'POST',
@@ -21,7 +24,9 @@ export const saveMessageToFirestore = async (
     });
 
     const data = await response.json();
-
+      
+    
+      
     if (response.ok) { 
       let myStorage = phone+"[storage-client]"+password;
       savePhone(myStorage)

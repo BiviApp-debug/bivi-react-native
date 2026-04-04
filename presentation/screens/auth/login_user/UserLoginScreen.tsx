@@ -57,32 +57,33 @@ export default function UserLoginScreen({ navigation, route }: Props) {
     useEffect(() => {
         (async () => {
             try {
-                setLoadingStatus("Conectando con el servidor...");
+                setLoadingStatus("Conectando con el servidor local...");
 
-                // Agregar timeout para detectar servidor lento
-                const timeout = setTimeout(() => {
-                    setLoadingStatus("El servidor está despertando, esto puede tomar 30-60 segundos...");
-                }, 5000);
-
-                let ActivateUpdate = await getUpdates();
-                clearTimeout(timeout);
+               /*   let ActivateUpdate = await getUpdates();
 
                 if (ActivateUpdate) {
-
-                    /*  if (ActivateUpdate[0].updateapp == "true") {
+                    if (ActivateUpdate[0].updateapp == "true") {
                           SetshowUpdateButon(ActivateUpdate[0].updateapp)
-                      }*/
-                }
+                      }
+                }*/
 
                 setLoadingStatus("Verificando credenciales guardadas...");
                 let getStorage = await loadSavedPhone();
                 console.log(getStorage, "holas_stoage");
 
                 if (getStorage && getStorage.includes("[storage-client]")) {
+                    
                     setLoadingStatus("Iniciando sesión automáticamente...");
+                    
                     setLoadingPayment(true);
+                    
                     let myStorage = getStorage.split("[storage-client]");
+                    
+                    console.log(myStorage,"holas_datos_78");
                     let login_response = await saveMessageToFirestore(myStorage[0], myStorage[1]);
+
+                    
+                    
                     setLoadingPayment(false);
 
                     if (login_response && !login_response.__loginError) {
@@ -185,12 +186,6 @@ export default function UserLoginScreen({ navigation, route }: Props) {
                 <Text style={styles.title}>
                     {loadingStatus}
                 </Text>
-                {loadingStatus.includes("despertando") && (
-                    <Text style={styles.title}>
-                        Los servidores gratuitos se duermen tras inactividad.{"\n"}
-                        La próxima vez será más rápido.
-                    </Text>
-                )}
             </View>
         )
     }

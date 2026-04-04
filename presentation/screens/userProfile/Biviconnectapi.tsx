@@ -402,16 +402,23 @@ export const getTelecomCompanyDetail = async (companyId: string) => {
 // ============================================
 
 /**
- * Obtener todas las misiones disponibles
+ * Obtener todas las misiones disponibles filtradas por NIT del usuario
  */
-export const getMissions = async () => {
+export const getMissions = async (userPhone: string) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/missions`, {
+    const response = await fetch(`${API_BASE_URL}/api/missions?userPhone=${encodeURIComponent(userPhone)}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
     });
+
+    // Verificar si la respuesta es JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('❌ Respuesta no es JSON:', contentType);
+      return { success: false, error: 'Error del servidor', data: [] };
+    }
 
     const data = await response.json();
 
@@ -422,12 +429,16 @@ export const getMissions = async () => {
         data: data.data.map((mission: any) => ({
           ...mission,
           reward_points: mission.reward_points,
+          // Asegurar que preferences es un objeto
+          preferences: mission.preferences ? 
+            (typeof mission.preferences === 'string' ? JSON.parse(mission.preferences) : mission.preferences) 
+            : null,
         })),
       };
     }
-    return { success: false, error: data.error, data: [] };
+    return { success: false, error: data.error || 'Error desconocido', data: [] };
   } catch (err: any) {
-    console.error('❌ Error en getMissions:', err);
+    console.error('❌ Error en getMissions:', err.message);
     return { success: false, error: err.message, data: [] };
   }
 };
@@ -502,26 +513,35 @@ export const completeMission = async (
  */
 export const getUserMissionHistory = async (userPhone: string) => {
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/user-missions/history/${userPhone}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    if (!userPhone) {
+      console.warn('⚠️ getUserMissionHistory: userPhone vacío');
+      return { success: true, data: [] };
+    }
+
+    const url = `${API_BASE_URL}/api/user-missions/history/${encodeURIComponent(userPhone)}`;
+    console.log(`📜 Fetching: ${url}`);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`⚠️ Historial misiones ${response.status}`);
+      return { success: true, data: [] };
+    }
 
     const data = await response.json();
 
     if (data.success) {
-      console.log(`✅ ${data.data.length} misiones en historial`);
-      return { success: true, data: data.data };
+      return { success: true, data: data.data || [] };
     }
-    return { success: false, error: data.error, data: [] };
+    return { success: true, data: [] };
   } catch (error: any) {
-    console.error('❌ Error en getUserMissionHistory:', error);
-    return { success: false, error: error.message, data: [] };
+    console.error('❌ Error en getUserMissionHistory:', error.message);
+    return { success: true, data: [] };
   }
 };
 
@@ -569,11 +589,11 @@ export const redeemMissionPoints = async (
 // ============================================
 
 /**
- * Obtener todas las ofertas disponibles
+ * Obtener todas las ofertas disponibles filtradas por NIT del usuario
  */
-export const getOffers = async () => {
+export const getOffers = async (userPhone: string) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/offers`, {
+    const response = await fetch(`${API_BASE_URL}/api/offers?userPhone=${encodeURIComponent(userPhone)}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -674,26 +694,33 @@ export const watchVideo = async (
  */
 export const getUserOfferHistory = async (userPhone: string) => {
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/user-offers/history/${userPhone}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    if (!userPhone) {
+      console.warn('⚠️ getUserOfferHistory: userPhone vacío');
+      return { success: true, data: [] };
+    }
+
+    const url = `${API_BASE_URL}/api/user-offers/history/${encodeURIComponent(userPhone)}`;
+    console.log(`📜 Fetching: ${url}`);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+     headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      console.warn(`⚠️ Historial videos ${response.status}`);
+      return { success: true, data: [] };
+    }
 
     const data = await response.json();
 
     if (data.success) {
-      console.log(`✅ ${data.data.length} videos en historial`);
-      return { success: true, data: data.data };
+      return { success: true, data: data.data || [] };
     }
-    return { success: false, error: data.error, data: [] };
+    return { success: true, data: [] };
   } catch (error: any) {
-    console.error('❌ Error en getUserOfferHistory:', error);
-    return { success: false, error: error.message, data: [] };
+    console.error('❌ Error en getUserOfferHistory:', error.message);
+    return { success: true, data: [] };
   }
 };
 
@@ -735,6 +762,60 @@ export const redeemOfferPoints = async (
     return { success: false, error: err.message };
   }
 };
+
+/**
+ * Obtener todas las encuestas disponibles filtradas por NIT del usuario
+ */
+export const getSurveys = async (userPhone: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/surveys?userPhone=${encodeURIComponent(userPhone)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Verificar status
+    if (!response.ok) {
+      console.error(`❌ Error HTTP ${response.status}: ${response.statusText}`);
+      return { success: false, error: `Error ${response.status}`, data: [] };
+    }
+
+    // Verificar si la respuesta es JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('❌ Respuesta no es JSON:', text.substring(0, 200));
+      return { success: false, error: 'Error del servidor', data: [] };
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      console.log(`✅ ${data.data.length} encuestas obtenidas`);
+      return {
+        success: true,
+        data: data.data.map((survey: any) => ({
+          ...survey,
+          reward_points: survey.reward_points,
+          // Parsear questions si es string
+          questions: survey.questions ? 
+            (typeof survey.questions === 'string' ? JSON.parse(survey.questions) : survey.questions) 
+            : [],
+          // Parsear preferences si es string
+          preferences: survey.preferences ? 
+            (typeof survey.preferences === 'string' ? JSON.parse(survey.preferences) : survey.preferences) 
+            : null,
+        })),
+      };
+    }
+    return { success: false, error: data.error || 'Error desconocido', data: [] };
+  } catch (err: any) {
+    console.error('❌ Error en getSurveys:', err.message);
+    return { success: false, error: err.message, data: [] };
+  }
+};
+
 
 // ============================================
 // 📊 ANALYTICS Y HISTORIAL ✅ NUEVO
@@ -1496,6 +1577,7 @@ export const calculateFare = async (
  * Verificar estado del servidor
  */
 export const checkHealth = async () => {
+    return { success: "ok"};
   try {
     const response = await fetch(`${API_BASE_URL}/health`, {
       method: 'GET',
@@ -1528,6 +1610,7 @@ export interface Mission {
   imageUrl?: string;
   status: "active" | "inactive";
   telecomCompanyNit?: string;
+  preferences?: PreferencesData;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1541,11 +1624,13 @@ export interface Offer {
   duration: string;
   type: "video" | "survey" | "promotional";
   icon: string;
+  video_url?: string;
   videoUrl?: string;
   companyName: string;
   imageUrl?: string;
   status: "active" | "inactive";
   telecomCompanyNit?: string;
+  preferences?: PreferencesData;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1577,11 +1662,490 @@ export interface UserData {
   email: string;
   phone: string;
   age: number;
+  gender?: string;
+  interests?: string[];
+  location?: string;
   isMinor: boolean;
   role: string;
   verified: boolean;
   telecomCompanyNit?: string;
   telecomCompanyName?: string;
-  location?: string;
   [key: string]: any;
 }
+
+/**
+ * Preferencias para filtrado de misiones, ofertas y encuestas ✅ NUEVO
+ */
+export interface PreferencesData {
+  ageRange?: string[];
+  gender?: string[];
+  interests?: string[];
+  minAge?: number;
+  maxAge?: number;
+  locations?: string[];
+}
+
+/**
+ * Encuesta con preguntas ✅ NUEVO
+ */
+export interface Survey {
+  id: string;
+  title: string;
+  description: string;
+  fullDescription?: string;
+  reward_points: number;
+  duration: string;
+  questions?: SurveyQuestion[];
+  icon: string;
+  status: "active" | "inactive";
+  preferences?: PreferencesData;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Pregunta de encuesta ✅ NUEVO
+ */
+export interface SurveyQuestion {
+  id: number;
+  type: "rating" | "multiple_choice" | "yes_no" | "text";
+  question: string;
+  options?: string[];
+  scale?: number;
+  required: boolean;
+}
+
+/**
+ * Helper function para verificar si un usuario aplica para preferences ✅ NUEVO
+ */
+export const userMatchesPreferences = (user: any, preferences?: PreferencesData): boolean => {
+  if (!preferences) return true;
+
+  // Verificar edad mínima
+  if (preferences.minAge && user.age < preferences.minAge) return false;
+  
+  // Verificar edad máxima
+  if (preferences.maxAge && user.age > preferences.maxAge) return false;
+
+  // Verificar género
+  if (preferences.gender && preferences.gender.length > 0) {
+    if (user.gender && !preferences.gender.includes(user.gender)) return false;
+  }
+
+  // Verificar intereses
+  if (preferences.interests && preferences.interests.length > 0 && user.interests && user.interests.length > 0) {
+    const hasMatch = user.interests.some((interest:any) => preferences.interests?.includes(interest));
+    if (!hasMatch) return false;
+  }
+
+  // Verificar ubicación
+  if (preferences.locations && preferences.locations.length > 0) {
+    if (user.location && !preferences.locations.includes(user.location)) return false;
+  }
+
+  return true;
+};
+
+
+
+
+// ============================================
+// 🎮 GAMES ✅ NUEVO - AÑADIDO
+// ============================================
+
+/**
+ * Obtener todos los juegos disponibles filtrados por NIT del usuario
+ */
+export const getGames = async (userPhone: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/games?userPhone=${encodeURIComponent(userPhone)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      console.log(`✅ ${data.data.length} juegos obtenidos`);
+      return {
+        success: true,
+        data: data.data.map((game: any) => ({
+          ...game,
+          reward_points: game.reward_points,
+        })),
+      };
+    }
+    return { success: false, error: data.error, data: [] };
+  } catch (err: any) {
+    console.error('❌ Error en getGames:', err);
+    return { success: false, error: err.message, data: [] };
+  }
+};
+
+/**
+ * Obtener detalle de un juego
+ */
+export const getGameDetail = async (gameId: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/games/${gameId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      console.log(`✅ Juego ${gameId} obtenido`);
+      return { success: true, data: data.data };
+    }
+    return { success: false, error: data.error };
+  } catch (err: any) {
+    console.error('❌ Error en getGameDetail:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Registrar juego jugado
+ */
+export const playGame = async (
+  userPhone: string,
+  gameId: string,
+  score: number = 0,
+  duration: number = 0
+) => {
+  try {
+    if (!userPhone || !gameId) {
+      return { success: false, error: 'Faltan datos' };
+    }
+
+    console.log(`🎮 Registrando juego ${gameId} para ${userPhone}`);
+
+    const response = await fetch(`${API_BASE_URL}/api/user-games/play`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userPhone: userPhone.trim(),
+        gameId: gameId.trim(),
+        score: score || 0,
+        playedAt: new Date().toISOString(),
+        duration: duration || 0,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      console.log(`✅ Juego registrado. Puntos: ${data.data.rewardPoints}`);
+      return { success: true, data: data.data };
+    } else {
+      return { success: false, error: data.error };
+    }
+  } catch (err: any) {
+    console.error('❌ Error en playGame:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Obtener historial de juegos del usuario
+ */
+export const getUserGameHistory = async (userPhone: string) => {
+  try {
+    if (!userPhone) {
+      return { success: true, data: [] };
+    }
+
+    const url = `${API_BASE_URL}/api/user-games/history/${encodeURIComponent(userPhone)}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      return { success: true, data: [] };
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      return { success: true, data: data.data || [] };
+    }
+    return { success: true, data: [] };
+  } catch (error: any) {
+    console.error('❌ Error en getUserGameHistory:', error.message);
+    return { success: true, data: [] };
+  }
+};
+
+/**
+ * Redimir puntos de un juego
+ */
+export const redeemGamePoints = async (
+  userPhone: string,
+  historyId: string,
+  telecomCompanyNit: string
+) => {
+  try {
+    if (!userPhone || !historyId) {
+      return { success: false, error: 'Faltan datos' };
+    }
+
+    console.log(`💰 Redimiendo juego ${historyId} para ${userPhone}`);
+
+    const response = await fetch(`${API_BASE_URL}/api/user-games/redeem`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userPhone: userPhone.trim(),
+        historyId: historyId.trim(),
+        telecomCompanyNit,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      console.log(`✅ Juego redimido. Puntos: ${data.pointsRedeemed}`);
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.error };
+    }
+  } catch (err: any) {
+    console.error('❌ Error en redeemGamePoints:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+// ============================================
+// 🎯 TIPOS DE DATOS / INTERFACES - AÑADIR GAME
+// ============================================
+
+export interface Game {
+  id: string;
+  title: string;
+  description: string;
+  fullDescription?: string;
+  reward_points: number;
+  duration: number;
+  game_type: string;
+  icon: string;
+  game_url?: string;
+  image_url?: string;
+  status: "active" | "inactive";
+  telecomCompanyNit?: string;
+  preferences?: PreferencesData;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ============================================
+// 📝 ENCUESTAS - COMPLETAR Y HISTORIAL
+// ============================================
+
+/**
+ * Completar una encuesta
+ */
+export const completeSurvey = async (
+  userPhone: string,
+  surveyId: string,
+  answers: any[]
+) => {
+  try {
+    if (!userPhone || !surveyId) {
+      return { success: false, error: 'Faltan datos' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/user-surveys/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userPhone: userPhone.trim(),
+        surveyId: surveyId.trim(),
+        answers,
+        completedAt: new Date().toISOString(),
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      return { success: true, data: data.data };
+    }
+    return { success: false, error: data.error };
+  } catch (err: any) {
+    console.error('❌ Error en completeSurvey:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Obtener historial de encuestas del usuario
+ */
+export const getUserSurveyHistory = async (userPhone: string) => {
+  try {
+    if (!userPhone) {
+      return { success: true, data: [] };
+    }
+
+    const url = `${API_BASE_URL}/api/user-surveys/history/${encodeURIComponent(userPhone)}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      return { success: true, data: [] };
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      return { success: true, data: data.data || [] };
+    }
+    return { success: true, data: [] };
+  } catch (error: any) {
+    console.error('❌ Error en getUserSurveyHistory:', error.message);
+    return { success: true, data: [] };
+  }
+};
+
+
+// ============================================
+// 📊 FUNCIONES DE SIMILITUD Y FILTRADO
+// ============================================
+
+/**
+ * Calcula la similitud de coseno entre dos vectores de preferencias
+ * @param userPrefs Preferencias del usuario
+ * @param itemPrefs Preferencias del item (misión, video, encuesta, juego)
+ * @returns Porcentaje de similitud (0-100)
+ */
+export const calculateCosineSimilarity = (
+  userPrefs: any,
+  itemPrefs: any
+): number => {
+  if (!itemPrefs) return 100; // Si no hay preferencias en el item, 100% compatible
+  
+  let totalWeight = 0;
+  let matchWeight = 0;
+  
+  // 1. Verificar edad (peso: 25%)
+  if (itemPrefs.minAge !== undefined && itemPrefs.maxAge !== undefined && userPrefs.age !== undefined) {
+    totalWeight += 25;
+    if (userPrefs.age >= itemPrefs.minAge && userPrefs.age <= itemPrefs.maxAge) {
+      matchWeight += 25;
+    }
+  } else if (itemPrefs.minAge !== undefined && userPrefs.age !== undefined) {
+    totalWeight += 25;
+    if (userPrefs.age >= itemPrefs.minAge) matchWeight += 25;
+  } else if (itemPrefs.maxAge !== undefined && userPrefs.age !== undefined) {
+    totalWeight += 25;
+    if (userPrefs.age <= itemPrefs.maxAge) matchWeight += 25;
+  }
+  
+  // 2. Verificar género (peso: 20%)
+  if (itemPrefs.gender && itemPrefs.gender.length > 0 && userPrefs.gender) {
+    totalWeight += 20;
+    if (itemPrefs.gender.includes(userPrefs.gender)) {
+      matchWeight += 20;
+    }
+  }
+  
+  // 3. Verificar intereses (peso: 35%)
+  if (itemPrefs.interests && itemPrefs.interests.length > 0 && userPrefs.interests && userPrefs.interests.length > 0) {
+    totalWeight += 35;
+    const commonInterests = userPrefs.interests.filter((interest:any) => 
+      itemPrefs.interests?.includes(interest)
+    );
+    const interestMatchPercent = (commonInterests.length / Math.max(itemPrefs.interests.length, 1)) * 35;
+    matchWeight += interestMatchPercent;
+  }
+  
+  // 4. Verificar ubicación (peso: 20%)
+  if (itemPrefs.locations && itemPrefs.locations.length > 0 && userPrefs.locations) {
+    totalWeight += 20;
+    if (itemPrefs.locations.includes(userPrefs.locations)) {
+      matchWeight += 20;
+    }
+  }
+  
+  // Si no hay criterios de filtrado, 100% compatible
+  if (totalWeight === 0) return 100;
+  
+  // Calcular porcentaje final
+  const similarity = (matchWeight / totalWeight) * 100;
+  return Math.round(similarity);
+};
+
+/**
+ * Filtra items por similitud de coseno
+ * @param items Lista de items (misiones, videos, encuestas, juegos)
+ * @param user Usuario con sus preferencias
+ * @param minSimilarity Porcentaje mínimo de similitud (default: 30)
+ * @returns Items filtrados con su porcentaje de similitud
+ */
+export const filterItemsBySimilarity = <T extends { preferences?: PreferencesData; telecomCompanyNit?: string }>(
+  items: T[],
+  user: UserData,
+  minSimilarity: number = 30
+): (T & { similarity: number })[] => {
+  if (!user) return items.map(item => ({ ...item, similarity: 100 }));
+  
+  const userPrefs: any = {
+    age: user.age,
+    gender: user.gender,
+    interests: user.interests,
+    location: user.location,
+  };
+  
+  const filtered = items
+    .filter(item => {
+      // Verificar NIT
+      if (item.telecomCompanyNit && item.telecomCompanyNit !== user.telecomCompanyNit) {
+        return false;
+      }
+      return true;
+    })
+    .map(item => ({
+      ...item,
+      similarity: calculateCosineSimilarity(userPrefs, item.preferences || {}),
+    }))
+    .filter(item => item.similarity >= minSimilarity)
+    .sort((a, b) => b.similarity - a.similarity);
+  
+  return filtered;
+};
+
+/**
+ * Verifica si un item es compatible con el usuario por NIT y preferencias
+ */
+export const isItemCompatible = (
+  user: UserData,
+  item: { telecomCompanyNit?: string; preferences?: PreferencesData },
+  minSimilarity: number = 30
+): boolean => {
+  if (!user) return false;
+  
+  // Verificar NIT
+  if (item.telecomCompanyNit && item.telecomCompanyNit !== user.telecomCompanyNit) {
+    return false;
+  }
+  
+  // Verificar preferencias
+  const userPrefs: any = {
+    age: user.age,
+    gender: user.gender,
+    interests: user.interests,
+    location: user.location,
+  };
+  
+  const similarity = calculateCosineSimilarity(userPrefs, item.preferences || {});
+  return similarity >= minSimilarity;
+};

@@ -14,19 +14,12 @@ import { TelecomCompany, UserData } from "./Biviconnectapi";
 
 interface Props extends StackScreenProps<RootStackParamList, "ProfileDetailScreen"> { }
 
-interface ProfileDetailScreenProps {
-  onBack: () => void;
-  profile: any;
-  profilePhotoUrl: string | null;
-  company?: TelecomCompany | null;
-}
+export default function ProfileDetailScreen({ route, navigation }: Props) {
+  const { profile, profilePhotoUrl, company } = route.params;
 
-export default function ProfileDetailScreen({
-  onBack,
-  profile,
-  profilePhotoUrl,
-  company,
-}: ProfileDetailScreenProps) {
+  const handleBack = () => {
+    navigation.goBack();
+  };
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   const getInitials = () => {
@@ -54,7 +47,7 @@ export default function ProfileDetailScreen({
   return (
     <View style={styles.screenContainer}>
       <View style={styles.screenHeader}>
-        <TouchableOpacity onPress={onBack}>
+        <TouchableOpacity onPress={handleBack}>
           <Text style={styles.backButton}>‹ Volver</Text>
         </TouchableOpacity>
         <Text style={styles.screenTitle}>Mi Perfil</Text>
