@@ -9,7 +9,11 @@ import {
   ScrollView,
   FlatList,
   Dimensions,
+  Alert,
+  Modal,
+  TextInput,
 } from "react-native";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from "../../API/API";
 import { dataContext } from "../../context/Authcontext";
@@ -36,7 +40,15 @@ import {
   getMissions,
   getOffers,
   filterItemsBySimilarity,
-  isItemCompatible
+  isItemCompatible,
+  getUserMissionHistory,
+  getUserOfferHistory,
+  getUserSurveyHistory,
+  getUserGameHistory,
+  redeemMissionPoints,
+  redeemOfferPoints,
+  redeemSurveyPoints,
+  redeemGamePoints,
 } from "./Biviconnectapi";
 import { loadCompleteUserData } from "./Loadcompleteuserdata";
 import { connectSocket } from "../../utils/Conections";
@@ -51,6 +63,13 @@ interface AnalyticsTotals {
   totalPoints: number;
   totalRedeemed: number;
   pointsRemaining: number;
+}
+
+interface PendingRedeemItem {
+  id: string;
+  type: 'mission' | 'offer' | 'survey' | 'game';
+  points: number;
+  date: string;
 }
 
 const normalizeNit = (value?: string | null) =>
@@ -86,6 +105,7 @@ const filterByUserTelecomCompany = (items: any[], userData: UserData): any[] => 
 };
 
 export default function UserProfileScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   // ===== ESTADOS DE DATOS =====
   const [user, setUser] = useState<UserData | null>(null);
   const [company, setCompany] = useState<TelecomCompany | null>(null);
@@ -107,6 +127,9 @@ export default function UserProfileScreen({ navigation }: Props) {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage] = useState("");
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
+  const [redeemAmount, setRedeemAmount] = useState("");
+  const [isRedeemingAll, setIsRedeemingAll] = useState(false);
 
   // ===== CONTEXTO =====
   const { authResponse, setAuthResponse } = useContext(dataContext);
@@ -250,6 +273,153 @@ export default function UserProfileScreen({ navigation }: Props) {
     } catch (error) {
       console.error('Error calculando puntos:', error);
     }
+  };
+
+  const getPointsValue = (item: any): number => {
+    const value =
+      item?.pointsEarned ??
+      item?.rewardPoints ??
+      item?.pointsRedeemed ??
+      item?.points ??
+      item?.reward_points ??
+      0;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const getCompletedDate = (item: any): string => {
+    return (
+      item?.completedAt ||
+      item?.playedAt ||
+      item?.watchedAt ||
+      item?.createdAt ||
+      item?.created_at ||
+      new Date().toISOString()
+    );
+  };
+
+  const buildPendingRedeemItems = async (): Promise<PendingRedeemItem[]> => {
+    const phone = user?.phone || '';
+    const [missionHistoryRes, offerHistoryRes, surveyHistoryRes, gameHistoryRes] =
+      await Promise.all([
+        getUserMissionHistory(phone),
+        getUserOfferHistory(phone),
+        getUserSurveyHistory(phone),
+        getUserGameHistory(phone),
+      ]);
+
+    const pendingMissions: PendingRedeemItem[] = (missionHistoryRes?.success ? missionHistoryRes.data : [])
+      .filter((item: any) => !item?.redeemed && item?.id)
+      .map((item: any) => ({ id: String(item.id), type: 'mission' as const, points: getPointsValue(item), date: getCompletedDate(item) }));
+
+    const pendingOffers: PendingRedeemItem[] = (offerHistoryRes?.success ? offerHistoryRes.data : [])
+      .filter((item: any) => !item?.redeemed && item?.id)
+      .map((item: any) => ({ id: String(item.id), type: 'offer' as const, points: getPointsValue(item), date: getCompletedDate(item) }));
+
+    const pendingSurveys: PendingRedeemItem[] = (surveyHistoryRes?.success ? surveyHistoryRes.data : [])
+      .filter((item: any) => !item?.redeemed && item?.id)
+      .map((item: any) => ({ id: String(item.id), type: 'survey' as const, points: getPointsValue(item), date: getCompletedDate(item) }));
+
+    const pendingGames: PendingRedeemItem[] = (gameHistoryRes?.success ? gameHistoryRes.data : [])
+      .filter((item: any) => !item?.redeemed && item?.id)
+      .map((item: any) => ({ id: String(item.id), type: 'game' as const, points: getPointsValue(item), date: getCompletedDate(item) }));
+
+    return [...pendingMissions, ...pendingOffers, ...pendingSurveys, ...pendingGames].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+  };
+
+  const openRedeemModal = () => {
+    if (analyticsTotals.pointsRemaining <= 0) {
+      Alert.alert('Sin puntos', 'No tienes puntos disponibles para canjear.');
+      return;
+    }
+    if (!user?.phone || isRedeemingAll) return;
+    setRedeemAmount(String(analyticsTotals.pointsRemaining));
+    setShowRedeemModal(true);
+  };
+
+  const handleRedeemAmountChange = (value: string) => {
+    const digitsOnly = value.replaceAll(/\D/g, '');
+    if (!digitsOnly) { setRedeemAmount(''); return; }
+    const parsedValue = Number(digitsOnly);
+    const maxAvailable = Math.max(0, analyticsTotals.pointsRemaining);
+    if (!Number.isFinite(parsedValue)) { setRedeemAmount(''); return; }
+    setRedeemAmount(String(Math.min(parsedValue, maxAvailable)));
+  };
+
+  const handleRedeemAllPoints = async () => {
+    const parsedAmount = Number(redeemAmount);
+    if (analyticsTotals.pointsRemaining <= 0) {
+      Alert.alert('Sin puntos', 'No tienes puntos disponibles para canjear.');
+      return;
+    }
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert('Monto inválido', 'Ingresa una cantidad válida de MB para redimir.');
+      return;
+    }
+    if (parsedAmount > analyticsTotals.pointsRemaining) {
+      Alert.alert('Monto excedido', `Solo tienes ${analyticsTotals.pointsRemaining} MB disponibles.`);
+      return;
+    }
+    const phone = user?.phone || '';
+    const telecomNit = user?.telecomCompanyNit || '';
+    if (!phone || !telecomNit) {
+      Alert.alert('Datos incompletos', 'No se pudo identificar el teléfono o la empresa telefónica.');
+      return;
+    }
+    if (isRedeemingAll) return;
+
+    Alert.alert(
+      'Confirmar canje',
+      `Vas a redimir ${parsedAmount} MB. El total procesado puede superar levemente ese valor.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            try {
+              setShowRedeemModal(false);
+              setIsRedeemingAll(true);
+              const pendingItems = await buildPendingRedeemItems();
+              const itemsToRedeem: PendingRedeemItem[] = [];
+              let accumulatedPoints = 0;
+              for (const item of pendingItems) {
+                if (accumulatedPoints >= parsedAmount) break;
+                itemsToRedeem.push(item);
+                accumulatedPoints += item.points;
+              }
+              if (itemsToRedeem.length === 0) {
+                Alert.alert('Sin historial', 'No encontramos actividades pendientes por redimir.');
+                return;
+              }
+              const redeemResults = await Promise.all(
+                itemsToRedeem.map((item) => {
+                  if (item.type === 'mission') return redeemMissionPoints(phone, item.id, telecomNit);
+                  if (item.type === 'offer') return redeemOfferPoints(phone, item.id, telecomNit);
+                  if (item.type === 'survey') return redeemSurveyPoints(phone, item.id, telecomNit);
+                  return redeemGamePoints(phone, item.id, telecomNit);
+                })
+              );
+              const successfulRedemptions = redeemResults.filter((r) => r?.success);
+              const failedRedemptions = redeemResults.filter((r) => !r?.success);
+              await calculateTotalPoints(phone);
+              let message = `Se registraron ${successfulRedemptions.length} canjes.`;
+              message += `\n\nMonto solicitado: ${parsedAmount} MB.`;
+              message += `\nMonto procesado: ${itemsToRedeem.reduce((sum, i) => sum + i.points, 0)} MB.`;
+              if (failedRedemptions.length > 0) {
+                message += `\n\n${failedRedemptions.length} canjes fallaron.`;
+              }
+              Alert.alert('Canje procesado', message);
+            } catch (error) {
+              Alert.alert('Error', 'Ocurrió un error al procesar el canje.');
+            } finally {
+              setIsRedeemingAll(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const loadClientProfilePhoto = async (phone: string) => {
@@ -518,7 +688,7 @@ export default function UserProfileScreen({ navigation }: Props) {
       </ScrollView>
 
       {/* BOTONES DE ACCIÓN */}
-      <View style={styles.bottomActions}>
+      <View style={[styles.bottomActions, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => navigation.navigate('ProfileDetailScreen', {
@@ -527,15 +697,65 @@ export default function UserProfileScreen({ navigation }: Props) {
             company,
           })}
         >
-          <Text style={styles.actionButtonText}>👤 Perfil</Text>
+          <Text style={styles.actionButtonText}>👤</Text>
+          <Text style={styles.actionButtonText}>Perfil</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.paymentButton]} onPress={() => setShowCardModal(true)}>
-          <Text style={[styles.actionButtonText, styles.paymentButtonText]}>💳 Redimir</Text>
+        <TouchableOpacity style={[styles.actionButton, styles.paymentButton]} onPress={openRedeemModal} disabled={isRedeemingAll}>
+          <Text style={[styles.actionButtonText, styles.paymentButtonText]}>💳</Text>
+          <Text style={[styles.actionButtonText, styles.paymentButtonText]}>{isRedeemingAll ? '⏳' : 'Redimir'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionButton} onPress={handleLogout}>
-          <Text style={[styles.actionButtonText, styles.logoutText]}>🚪 Salir</Text>
+          <Text style={[styles.actionButtonText, styles.logoutText]}>🚪</Text>
+          <Text style={[styles.actionButtonText, styles.logoutText]}>Salir</Text>
         </TouchableOpacity>
       </View>
+
+      {/* MODAL REDENCION */}
+      <Modal
+        visible={showRedeemModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRedeemModal(false)}
+      >
+        <View style={styles.redeemModalOverlay}>
+          <View style={styles.redeemModalCard}>
+            <Text style={styles.redeemModalTitle}>Canjear puntos</Text>
+            <Text style={styles.redeemModalSubtitle}>
+              Ingresa la cantidad de MB que quieres redimir. Disponible: {analyticsTotals.pointsRemaining} MB.
+            </Text>
+            <TextInput
+              style={styles.redeemInput}
+              value={redeemAmount}
+              onChangeText={handleRedeemAmountChange}
+              placeholder="Ej: 120"
+              placeholderTextColor="#9a9a9a"
+              keyboardType="numeric"
+              editable={!isRedeemingAll}
+            />
+            <Text style={styles.redeemHintText}>
+              El sistema redime actividades completas. Por eso el total final puede quedar un poco por encima del monto solicitado.
+            </Text>
+            <View style={styles.redeemModalActions}>
+              <TouchableOpacity
+                style={styles.redeemCancelButton}
+                onPress={() => setShowRedeemModal(false)}
+                disabled={isRedeemingAll}
+              >
+                <Text style={styles.redeemCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.redeemConfirmButton}
+                onPress={handleRedeemAllPoints}
+                disabled={isRedeemingAll}
+              >
+                <Text style={styles.redeemConfirmButtonText}>
+                  {isRedeemingAll ? 'Procesando...' : 'Confirmar canje'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* MODALES */}
       <HistoryModal visible={showHistoryModal} onClose={() => setShowHistoryModal(false)} userPhone={user.phone} />
@@ -933,10 +1153,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopWidth: 1,
     borderTopColor: '#eee',
-    paddingBottom: 40,
-    minHeight: 60
   },
   actionButton: {
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 4,
     flex: 1,
     alignItems: 'center',
     paddingVertical: 12,
@@ -947,15 +1169,92 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   actionButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#666',
+    color: '#666', 
   },
   paymentButtonText: {
     color: 'white',
   },
   logoutText: {
     color: COLORS.error,
+  },
+  // REDEEM MODAL STYLES
+  redeemModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  redeemModalCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 22,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  redeemModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#2f2f2f',
+    marginBottom: 8,
+  },
+  redeemModalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  redeemInput: {
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2f2f2f',
+    marginBottom: 12,
+  },
+  redeemHintText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#7a7a7a',
+    marginBottom: 18,
+  },
+  redeemModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  redeemCancelButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#d0d0d0',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  redeemCancelButtonText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  redeemConfirmButton: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  redeemConfirmButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
   },
   // BREAKDOWN STYLES
   breakdownCard: {
