@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  StatusBar,
 } from "react-native";
 import COLORS from "../../utils/colors";
 import {
@@ -45,6 +46,8 @@ interface RedemptionItem {
   status: string;
   approvedAt?: string;
 }
+
+type Props = StackScreenProps<RootStackParamList, 'AnalyticsScreen'>;
 
 const AnalyticsScreen = ({ route, navigation }: Props) => {
   const { userPhone, telecomCompanyNit, telecomCompany } = route.params;
@@ -96,71 +99,73 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+
+      {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack}>
-          <Text style={styles.backButton}>← Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>📊 Mis Estadísticas</Text>
-        <View style={{ width: 50 }} />
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>📊 Mis Estadísticas</Text>
+          <View style={{ width: 50 }} />
+        </View>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            activeTab === "summary" && styles.activeTab,
-          ]}
-          onPress={() => setActiveTab("summary")}
-        >
-          <Text
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* TABS */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
             style={[
-              styles.tabText,
-              activeTab === "summary" && styles.activeTabText,
+              styles.tab,
+              activeTab === "summary" && styles.activeTab,
             ]}
+            onPress={() => setActiveTab("summary")}
           >
-            Resumen
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "summary" && styles.activeTabText,
+              ]}
+            >
+              Resumen
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            activeTab === "history" && styles.activeTab,
-          ]}
-          onPress={() => setActiveTab("history")}
-        >
-          <Text
+          <TouchableOpacity
             style={[
-              styles.tabText,
-              activeTab === "history" && styles.activeTabText,
+              styles.tab,
+              activeTab === "history" && styles.activeTab,
             ]}
+            onPress={() => setActiveTab("history")}
           >
-            Historial
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "history" && styles.activeTabText,
+              ]}
+            >
+              Historial
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            activeTab === "redeem" && styles.activeTab,
-          ]}
-          onPress={() => setActiveTab("redeem")}
-        >
-          <Text
+          <TouchableOpacity
             style={[
-              styles.tabText,
-              activeTab === "redeem" && styles.activeTabText,
+              styles.tab,
+              activeTab === "redeem" && styles.activeTab,
             ]}
+            onPress={() => setActiveTab("redeem")}
           >
-            Redenciones
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Contenido */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "redeem" && styles.activeTabText,
+              ]}
+            >
+              Canjear
+            </Text>
+          </TouchableOpacity>
+        </View>
         {/* RESUMEN */}
         {activeTab === "summary" && summary && (
           <>
@@ -302,7 +307,7 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
                 <View key={index} style={styles.historyCard}>
                   <View style={styles.historyHeader}>
                     <Text style={styles.historyIcon}>{item.icon}</Text>
-                    <View style={styles.historyInfo}>
+                    <View style={styles.historyContent}>
                       <Text style={styles.historyTitle}>
                         {item.title}
                       </Text>
@@ -390,285 +395,367 @@ export default AnalyticsScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F4F1FF',
   },
   header: {
-    backgroundColor: COLORS.backgroundLight,
-    paddingHorizontal: 16,
+    backgroundColor: COLORS.primary,
     paddingTop: 50,
-    paddingBottom: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   backButton: {
-    color: COLORS.primary,
-    fontSize: 16,
-    fontWeight: "600",
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  title: {
-    color: COLORS.textPrimary,
-    fontSize: 16,
-    fontWeight: "bold",
+  backButtonText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  headerTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
   },
   tabsContainer: {
-    backgroundColor: COLORS.backgroundLight,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 5,
+    marginBottom: 20,
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   tab: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    alignItems: "center",
-    borderRadius: 6,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
   },
   activeTab: {
-    backgroundColor: "rgba(233, 30, 99, 0.1)",
+    backgroundColor: COLORS.primary,
   },
   tabText: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    fontWeight: "500",
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
   },
   activeTabText: {
-    color: COLORS.primary,
-    fontWeight: "bold",
-  },
-  content: {
-    flex: 1,
-  },
-  loadingText: {
-    color: COLORS.textPrimary,
-    marginTop: 10,
+    color: 'white',
   },
   summarySection: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    marginBottom: 20,
   },
   largeCard: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: "center",
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 30,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   largeNumber: {
-    color: "white",
     fontSize: 48,
-    fontWeight: "bold",
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    marginBottom: 8,
   },
   largeLabel: {
-    color: "white",
-    fontSize: 16,
-    marginTop: 8,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
   },
   largeSubtitle: {
-    color: "rgba(255, 255, 255, 0.8)",
     fontSize: 14,
-    marginTop: 4,
+    color: '#666',
   },
   statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-    gap: 12,
+    flexDirection: 'row',
+    marginBottom: 20,
   },
   statCard: {
-    width: "48%",
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary,
+    flex: 1,
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    marginHorizontal: 5,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   statIcon: {
     fontSize: 24,
     marginBottom: 8,
   },
   statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
     color: COLORS.primary,
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  statLabel: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    marginTop: 4,
-  },
-  breakdownSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  breakdownTitle: {
-    color: COLORS.textPrimary,
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 12,
-  },
-  breakdownCard: {
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary,
-  },
-  breakdownRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-  },
-  breakdownLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  breakdownIcon: {
-    fontSize: 20,
-    marginRight: 12,
-  },
-  breakdownLabel: {
-    color: COLORS.textPrimary,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  breakdownCount: {
-    color: COLORS.textSecondary,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  breakdownPoints: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  companyInfoCard: {
-    marginHorizontal: 16,
-    marginBottom: 30,
-    backgroundColor: "rgba(233, 30, 99, 0.1)",
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary,
-  },
-  companyInfoTitle: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  companyInfoText: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
     marginBottom: 4,
   },
-  historySection: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+  statLabel: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
-  historyCard: {
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary,
+  breakdownSection: {
+    marginBottom: 20,
   },
-  historyHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
   },
-  historyIcon: {
+  breakdownCard: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  breakdownLabel: {
+    fontSize: 16,
+    color: '#333',
+  },
+  breakdownValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+  },
+  breakdownTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+  },
+  breakdownIcon: {
     fontSize: 24,
     marginRight: 12,
   },
-  historyInfo: {
+  breakdownLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  breakdownCount: {
+    fontSize: 14,
+    color: '#666',
+  },
+  breakdownPoints: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#e9ecef',
+    marginVertical: 12,
+  },
+  companyInfoCard: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  companyInfoTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  companyInfoText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },
+  historySection: {
+    marginBottom: 20,
+  },
+  historyCard: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  historyIcon: {
+    fontSize: 24,
+    marginRight: 15,
+  },
+  historyContent: {
     flex: 1,
   },
   historyTitle: {
-    color: COLORS.textPrimary,
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
   },
   historyType: {
-    color: COLORS.textSecondary,
-    fontSize: 11,
-    marginTop: 2,
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
   },
   historyDate: {
-    color: COLORS.textSecondary,
-    fontSize: 10,
-    marginTop: 4,
+    fontSize: 14,
+    color: '#666',
   },
   historyPoints: {
+    fontSize: 16,
+    fontWeight: 'bold',
     color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: "bold",
   },
   redeemSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    marginBottom: 20,
   },
   redeemCard: {
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: "#4CAF50",
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   redeemHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  redeemItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   redeemInfo: {
     flex: 1,
   },
   redeemLabel: {
-    color: COLORS.textPrimary,
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  redeemType: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
   },
   redeemStatus: {
-    color: "#4CAF50",
-    fontSize: 11,
-    fontWeight: "600",
-    marginTop: 2,
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
   },
   redeemDate: {
-    color: COLORS.textSecondary,
-    fontSize: 10,
-    marginTop: 4,
+    fontSize: 12,
+    color: '#888',
   },
   redeemPoints: {
-    color: "#4CAF50",
-    fontSize: 14,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.primary,
   },
   emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 50,
+    alignItems: 'center',
+    padding: 40,
   },
   emptyIcon: {
-    fontSize: 50,
+    fontSize: 48,
     marginBottom: 16,
   },
   emptyText: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F4F1FF',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.primary,
   },
 });

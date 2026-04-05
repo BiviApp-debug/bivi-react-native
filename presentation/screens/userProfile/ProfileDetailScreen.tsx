@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import {
   View,
   Text,
@@ -6,26 +6,87 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  StatusBar,
+  TextInput,
+  ActivityIndicator,
+  Modal,
 } from "react-native";
 import COLORS from "../../utils/colors";
 import { StackScreenProps } from "@react-navigation/stack";
 import { RootStackParamList } from "../../navigator/MainStackNavigator";
-import { TelecomCompany, UserData } from "./Biviconnectapi";
+import ClientProfilePhotoUploader from "./ClientProfilePhotoUploader";
+import { updateUserPreferences, updateUserProfile } from "./Biviconnectapi";
+import { saveMessageToFirestore } from "../auth/login_user/loginFunctions";
+import ResetPasswordModalUserProfile from "../../utils/ResetPasswordModalUserProfile";
+import { dataContext } from "../../context/Authcontext";
+
+type UserPreferences = {
+  favoriteColors: string[];
+  favoriteGenres: string[];
+  favoriteActivities: string[];
+};
+
+const PREFERENCES_OPTIONS = {
+  colors: [
+    "Rojo", "Azul", "Verde", "Amarillo", "Naranja",
+    "Púrpura", "Rosa", "Blanco", "Negro", "Gris",
+  ],
+  genres: [
+    "Pop", "Rock", "Hip-Hop", "Reggaeton", "Salsa",
+    "Trap", "Bachata", "Cumbia", "Electrónica", "Jazz",
+  ],
+  activities: [
+    "Leer", "Deporte", "Videojuegos", "Películas", "Música",
+    "Viajes", "Gastronomía", "Redes Sociales", "Fotografía", "Dibujar",
+  ],
+};
+
+const DEFAULT_PREFERENCES: UserPreferences = {
+  favoriteColors: [],
+  favoriteGenres: [],
+  favoriteActivities: [],
+};
 
 interface Props extends StackScreenProps<RootStackParamList, "ProfileDetailScreen"> { }
 
-export default function ProfileDetailScreen({ route, navigation }: Props) {
+export default function ProfileDetailScreen({ route, navigation }: Readonly<Props>) {
   const { profile, profilePhotoUrl, company } = route.params;
+  const { authResponse, setAuthResponse } = useContext(dataContext);
+
+  const [photoUrl, setPhotoUrl] = useState(profilePhotoUrl || "");
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedProfile, setEditedProfile] = useState({
+    name: profile?.name || "",
+    lastName: profile?.lastName || "",
+    email: profile?.email || "",
+    phone: profile?.phone || "",
+    location: profile?.location || "",
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [showPreferencesModal, setShowPreferencesModal] = useState(false);
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [isResetLoginLoading, setIsResetLoginLoading] = useState(false);
+  const [preferences, setPreferences] = useState<UserPreferences>(() => {
+    try {
+      const rawPreferences = profile?.preferences;
+      const parsed = typeof rawPreferences === "string"
+        ? JSON.parse(rawPreferences)
+        : rawPreferences;
+
+      return {
+        favoriteColors: Array.isArray(parsed?.favoriteColors) ? parsed.favoriteColors : [],
+        favoriteGenres: Array.isArray(parsed?.favoriteGenres) ? parsed.favoriteGenres : [],
+        favoriteActivities: Array.isArray(parsed?.favoriteActivities) ? parsed.favoriteActivities : [],
+      };
+    } catch {
+      return DEFAULT_PREFERENCES;
+    }
+  });
 
   const handleBack = () => {
     navigation.goBack();
-  };
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-
-  const getInitials = () => {
-    const firstName = profile?.name ? profile.name[0] : "";
-    const lastName = profile?.lastName ? profile.lastName[0] : "";
-    return (firstName + lastName).toUpperCase();
   };
 
   const userEmail = profile?.email || "No especificado";
@@ -44,32 +105,159 @@ export default function ProfileDetailScreen({ route, navigation }: Props) {
     return profile?.location || "Ubicación no especificada";
   };
 
+  const handleEdit = () => {
+    setEditedProfile({
+      name: profile?.name || "",
+      lastName: profile?.lastName || "",
+      email: profile?.email || "",
+      phone: profile?.phone || "",
+      location: profile?.location || "",
+    });
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+  };
+
+  const handleSave = async () => {
+    if (!profile?.id) return;
+
+    setIsSaving(true);
+    try {
+      const result = await updateUserProfile(profile.id.toString(), editedProfile);
+      if (result.success) {
+        Alert.alert("Éxito", "Perfil actualizado correctamente");
+        setIsEditing(false);
+        // Opcional: refrescar datos o navegar
+      } else {
+        Alert.alert("Error", result.error || "No se pudo actualizar el perfil");
+      }
+    } catch {
+      Alert.alert("Error", "Error al guardar cambios");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateEditedField = (field: string, value: string) => {
+    setEditedProfile(prev => ({ ...prev, [field]: value }));
+  };
+
+  const togglePreference = (
+    category: keyof UserPreferences,
+    value: string
+  ) => {
+    setPreferences((prev) => {
+      const currentValues = prev[category];
+      const updatedValues = currentValues.includes(value)
+        ? currentValues.filter((item) => item !== value)
+        : [...currentValues, value];
+
+      return {
+        ...prev,
+        [category]: updatedValues,
+      };
+    });
+  };
+
+  const handleSavePreferences = async () => {
+    if (!profile?.id) {
+      Alert.alert("Error", "No se encontró el usuario para actualizar preferencias");
+      return;
+    }
+
+    setIsSavingPreferences(true);
+    try {
+      const result = await updateUserPreferences(profile.id.toString(), preferences);
+      if (!result.success) {
+        Alert.alert("Error", result.error || "No se pudieron guardar las preferencias");
+        return;
+      }
+
+      Alert.alert("Éxito", "Preferencias actualizadas correctamente");
+      setShowPreferencesModal(false);
+    } catch {
+      Alert.alert("Error", "Ocurrió un error al guardar preferencias");
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  };
+
+  const authPhone = authResponse?.usuario?.phone || profile?.phone || "";
+
+  const handleResetSuccess = async (resetPhone: string, resetPassword: string) => {
+    setShowResetModal(false);
+    setIsResetLoginLoading(true);
+    try {
+      const loginResponse = await saveMessageToFirestore(resetPhone, resetPassword);
+      if (loginResponse && !loginResponse.__loginError) {
+        setAuthResponse(loginResponse);
+        Alert.alert("Éxito", "Contraseña actualizada e inicio de sesión validado.");
+      } else {
+        Alert.alert(
+          "Contraseña actualizada",
+          "Tu contraseña fue cambiada. Si no puedes entrar de inmediato, vuelve a iniciar sesión manualmente."
+        );
+      }
+    } catch {
+      Alert.alert(
+        "Contraseña actualizada",
+        "La contraseña se actualizó, pero no se pudo validar el inicio de sesión automáticamente."
+      );
+    } finally {
+      setIsResetLoginLoading(false);
+    }
+  };
+
   return (
-    <View style={styles.screenContainer}>
-      <View style={styles.screenHeader}>
-        <TouchableOpacity onPress={handleBack}>
-          <Text style={styles.backButton}>‹ Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.screenTitle}>Mi Perfil</Text>
-        <View style={{ width: 50 }} />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+
+      {/* HEADER */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Mi Perfil</Text>
+          <View style={{ width: 50 }} />
+        </View>
       </View>
 
-      <ScrollView style={styles.screenContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.profileDetailCard}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* PERFIL PRINCIPAL */}
+        <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
-            {profilePhotoUrl ? (
-              <Text style={styles.avatarText}>📷</Text>
-            ) : (
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{getInitials()}</Text>
-              </View>
-            )}
+            <ClientProfilePhotoUploader
+              phone={profile?.phone || ""}
+              currentPhoto={photoUrl}
+              onPhotoUploaded={setPhotoUrl}
+              size={80}
+            />
           </View>
-
-          <Text style={styles.profileName}>
-            {profile?.name} {profile?.lastName}
-          </Text>
           <Text style={styles.profileSubtext}>{getLocation()}</Text>
+
+          {isEditing ? (
+            <View style={styles.nameInputs}>
+              <TextInput
+                style={styles.input}
+                value={editedProfile.name}
+                onChangeText={(value) => updateEditedField('name', value)}
+                placeholder="Nombre"
+              />
+              <TextInput
+                style={styles.input}
+                value={editedProfile.lastName}
+                onChangeText={(value) => updateEditedField('lastName', value)}
+                placeholder="Apellido"
+              />
+            </View>
+          ) : (
+            <Text style={styles.profileName}>
+              {profile?.name} {profile?.lastName}
+            </Text>
+          )}
 
           <View style={styles.profileStats}>
             <View style={styles.profileStatItem}>
@@ -92,18 +280,99 @@ export default function ProfileDetailScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() =>
-              Alert.alert("Info", "La edición de perfil está en desarrollo")
-            }
-          >
-            <Text style={styles.editButtonText}>✏️ Editar perfil</Text>
-          </TouchableOpacity>
+          {isEditing ? (
+            <View style={styles.editActions}>
+              <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={isSaving}>
+                {isSaving ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Guardar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={handleEdit}
+            >
+              <Text style={styles.editButtonText}>✏️ Editar perfil</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
+        {/* INFORMACIÓN DE CUENTA */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>📋 Información de Cuenta</Text>
+
+          <View style={styles.infoItem}>
+            <View style={styles.infoIconContainer}>
+              <Text style={styles.infoIcon}>✉️</Text>
+            </View>
+            <View style={styles.infoContent}>
+              <Text style={styles.infoLabel}>Email</Text>
+              {isEditing ? (
+                <TextInput
+                  style={styles.inputFull}
+                  value={editedProfile.email}
+                  onChangeText={(value) => updateEditedField('email', value)}
+                  placeholder="Email"
+                  keyboardType="email-address"
+                />
+              ) : (
+                <Text style={styles.infoValue}>{userEmail}</Text>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.infoItem}>
+            <View style={styles.infoIconContainer}>
+              <Text style={styles.infoIcon}>📞</Text>
+            </View>
+            <View style={styles.infoContent}>
+              <Text style={styles.infoLabel}>Teléfono</Text>
+              {isEditing ? (
+                <TextInput
+                  style={styles.inputFull}
+                  value={editedProfile.phone}
+                  onChangeText={(value) => updateEditedField('phone', value)}
+                  placeholder="Teléfono"
+                  keyboardType="phone-pad"
+                />
+              ) : (
+                <Text style={styles.infoValue}>{userPhone}</Text>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.infoItem}>
+            <View style={styles.infoIconContainer}>
+              <Text style={styles.infoIcon}>👤</Text>
+            </View>
+            <View style={styles.infoContent}>
+              <Text style={styles.infoLabel}>Tipo de Cuenta</Text>
+              <Text style={styles.infoValue}>{userRole}</Text>
+            </View>
+          </View>
+
+          {profile?.location && (
+            <View style={styles.infoItem}>
+              <View style={styles.infoIconContainer}>
+                <Text style={styles.infoIcon}>📍</Text>
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Ubicación</Text>
+                <Text style={styles.infoValue}>{profile.location}</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* EMPRESA TELECOM */}
         {company && (
-          <View style={styles.companySection}>
+          <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>📱 Tu Operador</Text>
 
             <View style={styles.companyCard}>
@@ -158,61 +427,18 @@ export default function ProfileDetailScreen({ route, navigation }: Props) {
           </View>
         )}
 
-        <View style={styles.infoSection}>
-          <Text style={styles.sectionTitle}>📋 Información de Cuenta</Text>
+        {/* ACCIONES */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>⚙️ Acciones</Text>
 
-          <View style={styles.infoItem}>
-            <View style={styles.infoIconContainer}>
-              <Text style={styles.infoIcon}>✉️</Text>
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{userEmail}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoItem}>
-            <View style={styles.infoIconContainer}>
-              <Text style={styles.infoIcon}>📞</Text>
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Teléfono</Text>
-              <Text style={styles.infoValue}>{userPhone}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoItem}>
-            <View style={styles.infoIconContainer}>
-              <Text style={styles.infoIcon}>👤</Text>
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Tipo de Cuenta</Text>
-              <Text style={styles.infoValue}>{userRole}</Text>
-            </View>
-          </View>
-
-          {profile?.location && (
-            <View style={styles.infoItem}>
-              <View style={styles.infoIconContainer}>
-                <Text style={styles.infoIcon}>📍</Text>
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Ubicación</Text>
-                <Text style={styles.infoValue}>{profile.location}</Text>
-              </View>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.actionsSection}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() =>
-              Alert.alert("Info", "Cambiar contraseña - En desarrollo")
-            }
+            onPress={() => setShowResetModal(true)}
           >
             <Text style={styles.actionButtonIcon}>🔐</Text>
-            <Text style={styles.actionButtonText}>Cambiar contraseña</Text>
+            <Text style={styles.actionButtonText}>
+              {isResetLoginLoading ? "Validando..." : "Cambiar contraseña"}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -227,58 +453,168 @@ export default function ProfileDetailScreen({ route, navigation }: Props) {
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() =>
-              Alert.alert("Info", "Configuración - En desarrollo")
-            }
+            onPress={() => setShowPreferencesModal(true)}
           >
             <Text style={styles.actionButtonIcon}>⚙️</Text>
             <Text style={styles.actionButtonText}>Configuración</Text>
           </TouchableOpacity>
         </View>
-
-        <View style={{ height: 50 }} />
       </ScrollView>
+
+      <Modal
+        visible={showPreferencesModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowPreferencesModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Editar preferencias</Text>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.preferenceSectionTitle}>Colores favoritos</Text>
+              <View style={styles.preferenceTagsWrap}>
+                {PREFERENCES_OPTIONS.colors.map((color) => {
+                  const selected = preferences.favoriteColors.includes(color);
+                  return (
+                    <TouchableOpacity
+                      key={color}
+                      style={[styles.preferenceTag, selected && styles.preferenceTagSelected]}
+                      onPress={() => togglePreference("favoriteColors", color)}
+                    >
+                      <Text style={[styles.preferenceTagText, selected && styles.preferenceTagTextSelected]}>
+                        {color}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.preferenceSectionTitle}>Géneros favoritos</Text>
+              <View style={styles.preferenceTagsWrap}>
+                {PREFERENCES_OPTIONS.genres.map((genre) => {
+                  const selected = preferences.favoriteGenres.includes(genre);
+                  return (
+                    <TouchableOpacity
+                      key={genre}
+                      style={[styles.preferenceTag, selected && styles.preferenceTagSelected]}
+                      onPress={() => togglePreference("favoriteGenres", genre)}
+                    >
+                      <Text style={[styles.preferenceTagText, selected && styles.preferenceTagTextSelected]}>
+                        {genre}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.preferenceSectionTitle}>Actividades favoritas</Text>
+              <View style={styles.preferenceTagsWrap}>
+                {PREFERENCES_OPTIONS.activities.map((activity) => {
+                  const selected = preferences.favoriteActivities.includes(activity);
+                  return (
+                    <TouchableOpacity
+                      key={activity}
+                      style={[styles.preferenceTag, selected && styles.preferenceTagSelected]}
+                      onPress={() => togglePreference("favoriteActivities", activity)}
+                    >
+                      <Text style={[styles.preferenceTagText, selected && styles.preferenceTagTextSelected]}>
+                        {activity}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowPreferencesModal(false)}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSaveButton}
+                onPress={handleSavePreferences}
+                disabled={isSavingPreferences}
+              >
+                {isSavingPreferences ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.modalSaveButtonText}>Guardar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <ResetPasswordModalUserProfile
+        phone={authPhone}
+        visible={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        onSuccess={handleResetSuccess}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screenContainer: {
+  container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F4F1FF',
   },
-  screenHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
+  // HEADER
+  header: {
+    backgroundColor: COLORS.primary,
     paddingTop: 50,
-    paddingBottom: 16,
-    backgroundColor: COLORS.backgroundLight,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   backButton: {
-    color: COLORS.primary,
-    fontSize: 16,
-    fontWeight: "600",
+    padding: 8,
   },
-  screenTitle: {
-    color: COLORS.textPrimary,
-    fontSize: 18,
-    fontWeight: "700",
+  backButtonText: {
+    fontSize: 24,
+    color: 'white',
+    fontWeight: 'bold',
   },
-  screenContent: {
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  scrollView: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
   },
-  profileDetailCard: {
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: 20,
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  // PROFILE CARD
+  profileCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
     padding: 20,
-    alignItems: "center",
-    marginBottom: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   avatarContainer: {
     marginBottom: 16,
@@ -288,79 +624,152 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   avatarText: {
-    color: "white",
+    color: 'white',
     fontSize: 32,
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
   profileName: {
-    color: COLORS.textPrimary,
-    fontSize: 20,
-    fontWeight: "700",
+    color: '#333',
+    fontSize: 22,
+    fontWeight: '700',
     marginBottom: 4,
-    textAlign: "center",
+    textAlign: 'center',
   },
   profileSubtext: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
+    color: '#666',
+    fontSize: 14,
     marginBottom: 16,
   },
   profileStats: {
-    flexDirection: "row",
-    width: "100%",
-    justifyContent: "space-around",
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-around',
     marginBottom: 20,
   },
   profileStatItem: {
-    alignItems: "center",
+    alignItems: 'center',
   },
   profileStatValue: {
     color: COLORS.primary,
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   profileStatLabel: {
-    color: COLORS.textSecondary,
+    color: '#666',
     fontSize: 11,
   },
   editButton: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 12,
+    borderRadius: 25,
   },
   editButtonText: {
-    color: "white",
+    color: 'white',
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: '600',
   },
-  companySection: {
+  nameInputs: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
     marginBottom: 16,
   },
-  sectionTitle: {
-    color: COLORS.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 12,
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 16,
+    backgroundColor: 'white',
+    flex: 1,
+    marginHorizontal: 5,
   },
-  companyCard: {
-    backgroundColor: COLORS.backgroundLight,
+  inputFull: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 16,
+    backgroundColor: 'white',
+    width: '100%',
+  },
+  editActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginTop: 20,
+  },
+  cancelButton: {
+    backgroundColor: '#ccc',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+    flex: 1,
+    marginRight: 10,
+  },
+  cancelButtonText: {
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  saveButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+    flex: 1,
+    marginLeft: 10,
+  },
+  saveButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  // SECTION CARDS
+  sectionCard: {
+    backgroundColor: 'white',
     borderRadius: 16,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
+    padding: 20,
+    marginHorizontal: 16,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  sectionTitle: {
+    color: '#333',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  // COMPANY STYLES
+  companyCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   companyIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "rgba(233, 30, 99, 0.1)",
-    justifyContent: "center",
-    alignItems: "center",
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: `${COLORS.primary}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
   companyIcon: {
@@ -370,73 +779,70 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   companyName: {
-    color: COLORS.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 2,
+    color: '#333',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
   },
   companyCountry: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
+    color: '#666',
+    fontSize: 14,
   },
   companyLogo: {
     fontSize: 24,
   },
   detailsGrid: {
-    marginBottom: 12,
-    gap: 8,
+    marginBottom: 16,
   },
   detailItem: {
-    backgroundColor: "rgba(233, 30, 99, 0.05)",
+    backgroundColor: '#f8f9fa',
     borderRadius: 12,
     padding: 12,
+    marginBottom: 8,
   },
   detailLabel: {
-    color: COLORS.textSecondary,
-    fontSize: 11,
+    color: '#666',
+    fontSize: 12,
     marginBottom: 4,
   },
   detailValue: {
-    color: COLORS.textPrimary,
-    fontSize: 13,
-    fontWeight: "600",
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '600',
   },
   descriptionBox: {
-    backgroundColor: "rgba(233, 30, 99, 0.1)",
+    backgroundColor: '#f8f9fa',
     borderRadius: 12,
-    padding: 12,
-    borderLeftWidth: 3,
+    padding: 16,
+    borderLeftWidth: 4,
     borderLeftColor: COLORS.primary,
   },
   descriptionTitle: {
     color: COLORS.primary,
-    fontSize: 12,
-    fontWeight: "700",
-    marginBottom: 4,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 8,
   },
   descriptionText: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    lineHeight: 16,
+    color: '#666',
+    fontSize: 14,
+    lineHeight: 20,
   },
-  infoSection: {
-    marginBottom: 16,
-  },
+  // INFO ITEMS
   infoItem: {
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
   infoIconContainer: {
     width: 40,
     height: 40,
-    borderRadius: 8,
-    backgroundColor: "rgba(233, 30, 99, 0.1)",
-    justifyContent: "center",
-    alignItems: "center",
+    borderRadius: 20,
+    backgroundColor: `${COLORS.primary}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
   infoIcon: {
@@ -446,33 +852,113 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   infoLabel: {
-    color: COLORS.textSecondary,
-    fontSize: 11,
+    color: '#666',
+    fontSize: 12,
     marginBottom: 2,
   },
   infoValue: {
-    color: COLORS.textPrimary,
-    fontSize: 13,
-    fontWeight: "600",
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  actionsSection: {
-    marginBottom: 16,
-    gap: 8,
-  },
+  // ACTION BUTTONS
   actionButton: {
-    backgroundColor: COLORS.backgroundLight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    marginBottom: 8,
+    backgroundColor: '#f8f9fa',
     borderRadius: 12,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
   },
   actionButtonIcon: {
     fontSize: 18,
     marginRight: 12,
   },
   actionButtonText: {
-    color: COLORS.textPrimary,
+    color: '#333',
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalCard: {
+    backgroundColor: 'white',
+    width: '100%',
+    maxHeight: '85%',
+    borderRadius: 16,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 12,
+  },
+  preferenceSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333',
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  preferenceTagsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 8,
+  },
+  preferenceTag: {
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginRight: 8,
+    marginBottom: 8,
+    backgroundColor: '#f8f9fa',
+  },
+  preferenceTagSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  preferenceTagText: {
+    color: '#333',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  preferenceTagTextSelected: {
+    color: 'white',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    marginTop: 14,
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: '#ececec',
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginRight: 8,
+  },
+  modalCancelButtonText: {
+    textAlign: 'center',
+    color: '#333',
+    fontWeight: '600',
+  },
+  modalSaveButton: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginLeft: 8,
+    alignItems: 'center',
+  },
+  modalSaveButtonText: {
+    color: 'white',
+    fontWeight: '700',
   },
 });

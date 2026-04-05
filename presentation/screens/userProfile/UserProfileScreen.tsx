@@ -25,7 +25,7 @@ import DaviPlataPaymentModal from "../clientHome/screenMap/DaviPlataPaymentModal
 import ErrorModal from "../../components/ErrorModal";
 import SuccessModal from "../../components/SuccessModal";
 import { logoutDriver, logoutUser } from "../../utils/Logout";
-import HistoryModal from "./HistoryModal";
+import HistoryModal from './UserActivityHistoryModal';
 
 // ===== TIPOS Y FUNCIONES =====
 import { 
@@ -80,6 +80,16 @@ export default function UserProfileScreen({ navigation }: Props) {
   // ===== OTROS ESTADOS =====
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
   const [totalPoints, setTotalPoints] = useState(0);
+  const [pointsBreakdown, setPointsBreakdown] = useState({
+    missions: 0,
+    offers: 0,
+    surveys: 0,
+    games: 0,
+    missionsCompleted: 0,
+    videosWatched: 0,
+    surveysCompleted: 0,
+    gamesPlayed: 0
+  });
 
   // Recalcular puntos cuando se regrese a la pantalla
   useFocusEffect(
@@ -173,6 +183,16 @@ export default function UserProfileScreen({ navigation }: Props) {
       const data = await response.json();
       if (data.success) {
         setTotalPoints(data.data.summary.totalPoints || 0);
+        setPointsBreakdown({
+          missions: data.data.summary.pointsFromMissions || 0,
+          offers: data.data.summary.pointsFromVideos || 0,
+          surveys: data.data.summary.pointsFromSurveys || 0,
+          games: data.data.summary.pointsFromGames || 0,
+          missionsCompleted: data.data.summary.missionsCompleted || 0,
+          videosWatched: data.data.summary.videosWatched || 0,
+          surveysCompleted: data.data.summary.surveysCompleted || 0,
+          gamesPlayed: data.data.summary.gamesPlayed || 0
+        });
       }
     } catch (error) {
       console.error('Error calculando puntos:', error);
@@ -222,144 +242,207 @@ export default function UserProfileScreen({ navigation }: Props) {
     return (
       <View style={styles.loader}>
         <Text style={styles.errorText}>No se encontró el perfil</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.retryButton} onPress={handleLogout}>
           <Text style={styles.retryButtonText}>Volver</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  const missionTotal = missions.length;
+  const surveyTotal = surveys.length;
+  const gameTotal = games.length;
+
+  const missionsDone = Math.min(pointsBreakdown.missionsCompleted, missionTotal);
+  const surveysDone = Math.min(pointsBreakdown.surveysCompleted, surveyTotal);
+  const gamesDone = Math.min(pointsBreakdown.gamesPlayed, gameTotal);
+
+  const missionsPending = Math.max(missionTotal - missionsDone, 0);
+  const surveysPending = Math.max(surveyTotal - surveysDone, 0);
+  const gamesPending = Math.max(gameTotal - gamesDone, 0);
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-      {/* HEADER */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowHistoryModal(true)} style={styles.historyButton}>
-            <Text style={styles.historyButtonText}>📜</Text>
-          </TouchableOpacity>
-        </View>
+        {/* HEADER */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Text style={styles.backButtonText}>←</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowHistoryModal(true)} style={styles.historyButton}>
+              <Text style={styles.historyButtonText}>📜</Text>
+            </TouchableOpacity>
+          </View>
 
-        <View style={styles.profileSection}>
-          <View style={styles.avatarContainer}>
-            {profilePhotoUrl ? (
-              <Image source={{ uri: profilePhotoUrl }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>
-                  {user.name?.charAt(0)}{user.lastName?.charAt(0)}
-                </Text>
+          <View style={styles.profileSection}>
+            <Text style={styles.welcomeText}>Buenos días,</Text>
+            <Text style={styles.userName}>{user.name} {user.lastName}</Text>
+            <Text style={styles.userPhone}>{user.phone}</Text>
+            {company && (
+              <View style={styles.companyBadge}>
+                <Text style={styles.companyText}>🏢 {company.name}</Text>
               </View>
             )}
           </View>
-          <Text style={styles.userName}>{user.name} {user.lastName}</Text>
-          <Text style={styles.userPhone}>{user.phone}</Text>
-          {company && (
-            <View style={styles.companyBadge}>
-              <Text style={styles.companyText}>🏢 {company.name}</Text>
-            </View>
-          )}
-        </View>
 
-        <View style={styles.pointsCard}>
-          <Text style={styles.pointsIcon}>⭐</Text>
-          <View style={styles.pointsInfo}>
-            <Text style={styles.pointsLabel}>Tus puntos</Text>
-            <Text style={styles.pointsValue}>{totalPoints.toLocaleString()} MB</Text>
+          <View style={styles.pointsCard}>
+            <Text style={styles.pointsIcon}>⭐</Text>
+            <View style={styles.pointsInfo}>
+              <Text style={styles.pointsLabel}>Saldo acumulado</Text>
+              <Text style={styles.pointsValue}>{totalPoints.toLocaleString()} MB</Text>
+              <Text style={styles.pointsSubtitle}>+ {pointsBreakdown.missionsCompleted + pointsBreakdown.videosWatched + pointsBreakdown.surveysCompleted + pointsBreakdown.gamesPlayed} acciones</Text>
+            </View>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryNumber}>{missionsDone}/{missionTotal}</Text>
+              <Text style={styles.summaryLabel}>Misiones</Text>
+              <Text style={styles.summarySubLabel}>Faltan: {missionsPending}</Text>
+            </View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryNumber}>{surveysDone}/{surveyTotal}</Text>
+              <Text style={styles.summaryLabel}>Encuestas</Text>
+              <Text style={styles.summarySubLabel}>Faltan: {surveysPending}</Text>
+            </View>
+            <View style={[styles.summaryCard, styles.summaryCardLast]}>
+              <Text style={styles.summaryNumber}>{gamesDone}/{gameTotal}</Text>
+              <Text style={styles.summaryLabel}>Juegos</Text>
+              <Text style={styles.summarySubLabel}>Faltan: {gamesPending}</Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      {/* TABS */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'missions' && styles.activeTab]}
-          onPress={() => setActiveTab('missions')}
-        >
-          <Text style={[styles.tabText, activeTab === 'missions' && styles.activeTabText]}>
-            🎯 Misiones
-          </Text>
-        </TouchableOpacity>
+        {/* DESGLOSE DE PUNTOS */}
+        <View style={styles.breakdownCard}>
+          <Text style={styles.breakdownTitle}>📊 Desglose de puntos</Text>
 
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'offers' && styles.activeTab]}
-          onPress={() => setActiveTab('offers')}
-        >
-          <Text style={[styles.tabText, activeTab === 'offers' && styles.activeTabText]}>
-            📺 Videos
-          </Text>
-        </TouchableOpacity>
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>🎯 Misiones</Text>
+            <Text style={styles.breakdownValue}>
+              {pointsBreakdown.missions.toLocaleString()} MB
+            </Text>
+          </View>
 
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'surveys' && styles.activeTab]}
-          onPress={() => setActiveTab('surveys')}
-        >
-          <Text style={[styles.tabText, activeTab === 'surveys' && styles.activeTabText]}>
-            📝 Encuestas
-          </Text>
-        </TouchableOpacity>
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>🎥 Videos</Text>
+            <Text style={styles.breakdownValue}>
+              {pointsBreakdown.offers.toLocaleString()} MB
+            </Text>
+          </View>
 
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'games' && styles.activeTab]}
-          onPress={() => setActiveTab('games')}
-        >
-          <Text style={[styles.tabText, activeTab === 'games' && styles.activeTabText]}>
-            🎮 Juegos
-          </Text>
-        </TouchableOpacity>
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>📝 Encuestas</Text>
+            <Text style={styles.breakdownValue}>
+              {pointsBreakdown.surveys.toLocaleString()} MB
+            </Text>
+          </View>
+
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>🎮 Juegos</Text>
+            <Text style={styles.breakdownValue}>
+              {pointsBreakdown.games.toLocaleString()} MB
+            </Text>
+          </View>
+        </View>
+
+        {/* TABS */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'missions' && styles.activeTab]}
+            onPress={() => setActiveTab('missions')}
+          >
+            <Text style={[styles.tabText, activeTab === 'missions' && styles.activeTabText]}>
+              🎯 Misiones
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'offers' && styles.activeTab]}
+            onPress={() => setActiveTab('offers')}
+          >
+            <Text style={[styles.tabText, activeTab === 'offers' && styles.activeTabText]}>
+              📺 Videos
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'surveys' && styles.activeTab]}
+            onPress={() => setActiveTab('surveys')}
+          >
+            <Text style={[styles.tabText, activeTab === 'surveys' && styles.activeTabText]}>
+              📝 Encuestas
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'games' && styles.activeTab]}
+            onPress={() => setActiveTab('games')}
+          >
+            <Text style={[styles.tabText, activeTab === 'games' && styles.activeTabText]}>
+              🎮 Juegos
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* CONTENIDO */}
+        <View style={styles.tabContent}>
+          {activeTab === 'missions' && (
+            <ItemList
+              items={missions}
+              type="mission"
+              userPhone={user.phone}
+              navigation={navigation}
+              emptyMessage="No hay misiones disponibles para ti"
+            />
+          )}
+          {activeTab === 'offers' && (
+            <ItemList
+              items={offers}
+              type="offer"
+              userPhone={user.phone}
+              navigation={navigation}
+              emptyMessage="No hay videos disponibles para ti"
+            />
+          )}
+          {activeTab === 'surveys' && (
+            <ItemList
+              items={surveys}
+              type="survey"
+              userPhone={user.phone}
+              navigation={navigation}
+              emptyMessage="No hay encuestas disponibles para ti"
+            />
+          )}
+          {activeTab === 'games' && (
+            <ItemList
+              items={games}
+              type="game"
+              userPhone={user.phone}
+              navigation={navigation}
+              emptyMessage="No hay juegos disponibles para ti"
+            />
+          )}
+        </View>
       </ScrollView>
-
-      {/* CONTENIDO */}
-      <View style={styles.tabContent}>
-        {activeTab === 'missions' && (
-          <ItemList
-            items={missions}
-            type="mission"
-            userPhone={user.phone}
-            navigation={navigation}
-            emptyMessage="No hay misiones disponibles para ti"
-          />
-        )}
-        {activeTab === 'offers' && (
-          <ItemList
-            items={offers}
-            type="offer"
-            userPhone={user.phone}
-            navigation={navigation}
-            emptyMessage="No hay videos disponibles para ti"
-          />
-        )}
-        {activeTab === 'surveys' && (
-          <ItemList
-            items={surveys}
-            type="survey"
-            userPhone={user.phone}
-            navigation={navigation}
-            emptyMessage="No hay encuestas disponibles para ti"
-          />
-        )}
-        {activeTab === 'games' && (
-          <ItemList
-            items={games}
-            type="game"
-            userPhone={user.phone}
-            navigation={navigation}
-            emptyMessage="No hay juegos disponibles para ti"
-          />
-        )}
-      </View>
 
       {/* BOTONES DE ACCIÓN */}
       <View style={styles.bottomActions}>
-        <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('UserProfileScreen')}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('ProfileDetailScreen', {
+            profile: user,
+            profilePhotoUrl,
+            company,
+          })}
+        >
           <Text style={styles.actionButtonText}>👤 Perfil</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.actionButton, styles.paymentButton]} onPress={() => setShowCardModal(true)}>
-          <Text style={[styles.actionButtonText, styles.paymentButtonText]}>💳 Pagar</Text>
+          <Text style={[styles.actionButtonText, styles.paymentButtonText]}>💳 Redimir</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionButton} onPress={handleLogout}>
           <Text style={[styles.actionButtonText, styles.logoutText]}>🚪 Salir</Text>
@@ -404,6 +487,8 @@ function ItemList({ items, type, userPhone, navigation, emptyMessage }: any) {
   return (
     <FlatList
       data={items}
+      nestedScrollEnabled
+      scrollEnabled={false}
       renderItem={({ item }) => (
         <TouchableOpacity
           style={styles.itemCard}
@@ -446,7 +531,7 @@ function ItemList({ items, type, userPhone, navigation, emptyMessage }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F4F1FF',
   },
   loader: {
     flex: 1,
@@ -570,20 +655,72 @@ const styles = StyleSheet.create({
   },
   pointsLabel: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.85)',
+    marginBottom: 6,
   },
   pointsValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFD700',
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+  pointsSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 6,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  welcomeText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    marginBottom: 4,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 18,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  summaryCardLast: {
+    marginRight: 0,
+  },
+  summaryNumber: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: 'white',
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 4,
+  },
+  summarySubLabel: {
+    marginTop: 4,
+    fontSize: 11,
+    color: 'white',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   // TABS
   tabsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: 'white',
-    marginTop: -15,
+    marginTop: 16,
     marginHorizontal: 16,
     borderRadius: 25,
     shadowColor: '#000',
@@ -593,26 +730,26 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   tab: {
-    paddingVertical: 10,
-    paddingHorizontal: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 25,
-    marginHorizontal: 4,
+    margin: 4,
   },
   activeTab: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#6B2D7A',
   },
   tabText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#666',
   },
   activeTabText: {
-    color: COLORS.textDark,
+    color: 'white',
   },
   tabContent: {
-    flex: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
+    paddingBottom: 20,
   },
   listContent: {
     paddingBottom: 20,
@@ -729,5 +866,48 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: COLORS.error,
+  },
+  // BREAKDOWN STYLES
+  breakdownCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 2,
+    marginHorizontal: 24,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  breakdownTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  breakdownRow: {
+    height: 40,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 1,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  breakdownLabel: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
+  },
+  breakdownValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
 });

@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  ScrollView,
+  StatusBar,
 } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../../navigator/MainStackNavigator';
@@ -39,8 +41,8 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
   useEffect(() => {
     const getUserData = async () => {
       const phone = await AsyncStorage.getItem('userPhone');
-      if (phone) setUserPhone(phone);
-      checkIfWatched(phone || '');
+      if (phone) setUserPhone(authResponse?.usuario?.phone || '');
+      checkIfWatched(authResponse?.usuario?.phone || '');
     };
     getUserData();
   }, []);
@@ -90,66 +92,100 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.videoContainer}>
-        {offer.video_url ? (
-          <Video
-            ref={videoRef}
-            source={{ uri: offer.video_url }}
-            style={styles.video}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            onPlaybackStatusUpdate={(status: AVPlaybackStatus) => {
-              // Check if video finished playing
-              if (status.isLoaded && (status as AVPlaybackStatusSuccess).didJustFinish && !watched) {
-                handleVideoComplete();
-              }
-            }}
-          />
-        ) : (
-          <View style={styles.noVideoContainer}>
-            <Text style={styles.noVideoText}>📺 Video no disponible</Text>
-          </View>
-        )}
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+
+      {/* HEADER */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Detalles del Video</Text>
+          <View style={{ width: 50 }} />
+        </View>
       </View>
 
-      <View style={styles.content}>
-        <Text style={styles.icon}>{offer.icon}</Text>
-        <Text style={styles.title}>{offer.title}</Text>
-        <Text style={styles.company}>{offer.companyName}</Text>
-        <Text style={styles.description}>{offer.description}</Text>
-
-        {offer.fullDescription && (
-          <Text style={styles.fullDescription}>{offer.fullDescription}</Text>
-        )}
-
-        <View style={styles.rewardCard}>
-          <Text style={styles.rewardText}>🎁 Recompensa: {offer.reward_points} MB</Text>
-          <Text style={styles.durationText}>⏱️ Duración: {offer.duration}</Text>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* VIDEO CARD */}
+        <View style={styles.videoCard}>
+          <View style={styles.videoContainer}>
+            {offer.video_url ? (
+              <Video
+                ref={videoRef}
+                source={{ uri: offer.video_url }}
+                style={styles.video}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                onPlaybackStatusUpdate={(status: AVPlaybackStatus) => {
+                  // Check if video finished playing
+                  if (status.isLoaded && (status as AVPlaybackStatusSuccess).didJustFinish && !watched) {
+                    handleVideoComplete();
+                  }
+                }}
+              />
+            ) : (
+              <View style={styles.noVideoContainer}>
+                <Text style={styles.noVideoText}>📺 Video no disponible</Text>
+              </View>
+            )}
+          </View>
         </View>
 
-        {!watched && !loading && (
-          <TouchableOpacity
-            style={styles.watchButton}
-            onPress={() => {
-              if (videoRef.current) {
-                (videoRef.current as any).playAsync();
-              }
-            }}
-          >
-            <Text style={styles.watchButtonText}>▶ Ver video</Text>
-          </TouchableOpacity>
-        )}
-
-        {loading && (
-          <ActivityIndicator size="large" color={COLORS.primary} />
-        )}
-
-        {watched && !loading && (
-          <View style={styles.completedBadge}>
-            <Text style={styles.completedText}>✓ Video completado</Text>
+        {/* VIDEO INFO CARD */}
+        <View style={styles.infoCard}>
+          <View style={styles.videoHeader}>
+            <Text style={styles.videoIcon}>{offer.icon}</Text>
+            <View style={styles.videoInfo}>
+              <Text style={styles.videoTitle}>{offer.title}</Text>
+              <Text style={styles.videoCompany}>{offer.companyName}</Text>
+            </View>
           </View>
-        )}
-      </View>
+
+          <Text style={styles.videoDescription}>{offer.description}</Text>
+
+          {offer.fullDescription && (
+            <Text style={styles.videoFullDescription}>{offer.fullDescription}</Text>
+          )}
+
+          <View style={styles.rewardSection}>
+            <View style={styles.rewardBadge}>
+              <Text style={styles.rewardText}>🎁 {offer.reward_points} MB</Text>
+            </View>
+            <View style={styles.durationBadge}>
+              <Text style={styles.durationText}>⏱️ {offer.duration}</Text>
+            </View>
+          </View>
+
+          {/* ACTION BUTTONS */}
+          <View style={styles.buttonContainer}>
+            {!watched && !loading && (
+              <TouchableOpacity
+                style={styles.watchButton}
+                onPress={() => {
+                  if (videoRef.current) {
+                    (videoRef.current as any).playAsync();
+                  }
+                }}
+              >
+                <Text style={styles.watchButtonText}>▶ Ver video</Text>
+              </TouchableOpacity>
+            )}
+
+            {loading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={styles.loadingText}>Procesando...</Text>
+              </View>
+            )}
+
+            {watched && !loading && (
+              <View style={styles.completedBadge}>
+                <Text style={styles.completedText}>✓ Video completado</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </ScrollView>
 
       <SuccessModal
         visible={showSuccess}
@@ -169,97 +205,185 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F4F1FF',
+  },
+  header: {
+    backgroundColor: COLORS.primary,
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backButtonText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  headerTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  videoCard: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   videoContainer: {
-    height: 250,
-    backgroundColor: '#000',
+    width: '100%',
+    height: 200,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#f0f0f0',
   },
   video: {
-    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   noVideoContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#333',
   },
   noVideoText: {
-    color: 'white',
     fontSize: 16,
+    color: '#666',
   },
-  content: {
-    flex: 1,
+  infoCard: {
+    backgroundColor: 'white',
+    borderRadius: 15,
     padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  videoHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 15,
   },
-  icon: {
-    fontSize: 48,
-    marginBottom: 12,
+  videoIcon: {
+    fontSize: 30,
+    marginRight: 15,
   },
-  title: {
-    fontSize: 22,
+  videoInfo: {
+    flex: 1,
+  },
+  videoTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 5,
   },
-  company: {
+  videoCompany: {
     fontSize: 16,
-    color: COLORS.primary,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  description: {
-    fontSize: 14,
     color: '#666',
-    textAlign: 'center',
-    marginBottom: 16,
   },
-  fullDescription: {
+  videoDescription: {
+    fontSize: 16,
+    color: '#666',
+    lineHeight: 24,
+    marginBottom: 15,
+  },
+  videoFullDescription: {
     fontSize: 14,
-    color: '#555',
-    textAlign: 'center',
+    color: '#888',
+    lineHeight: 22,
     marginBottom: 20,
   },
-  rewardCard: {
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: 24,
+  rewardSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  rewardBadge: {
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   rewardText: {
-    fontSize: 16,
+    color: '#2E7D32',
     fontWeight: 'bold',
-    color: COLORS.primary,
-    marginBottom: 8,
+    fontSize: 14,
+  },
+  durationBadge: {
+    backgroundColor: '#FFF3E0',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   durationText: {
+    color: '#EF6C00',
+    fontWeight: 'bold',
     fontSize: 14,
-    color: '#666',
+  },
+  buttonContainer: {
+    alignItems: 'center',
   },
   watchButton: {
     backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
+    paddingHorizontal: 30,
+    paddingVertical: 15,
     borderRadius: 25,
+    marginBottom: 10,
   },
   watchButtonText: {
-    color: COLORS.textDark,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  completedBadge: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 25,
-  },
-  completedText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: COLORS.primary,
+  },
+  completedBadge: {
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  completedText: {
+    color: '#2E7D32',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });

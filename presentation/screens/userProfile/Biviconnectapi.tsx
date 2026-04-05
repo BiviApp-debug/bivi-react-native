@@ -122,6 +122,63 @@ export const updateUserPreferences = async (
   }
 };
 
+/**
+ * Actualizar perfil completo del usuario
+ */
+export const updateUserProfile = async (
+  userId: string,
+  updateData: {
+    name?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    dateOfBirth?: string;
+    age?: number;
+    isMinor?: boolean;
+    documentUrl?: string;
+    documentType?: string;
+    location?: string;
+    preferences?: any;
+    gender?: string;
+    interests?: any;
+    telecomCompanyNit?: string;
+    telecomCompanyName?: string;
+  }
+) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/user/${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updateData),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Error ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch {
+        // Si no es JSON, usar el mensaje de status
+      }
+      return { success: false, error: errorMessage };
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      console.log('✅ Perfil actualizado:', data.updatedFields);
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.error };
+    }
+  } catch (error: any) {
+    console.error('❌ Error en updateUserProfile:', error.message);
+    return { success: false, error: error.message };
+  }
+};
+
 // ============================================
 // 🔐 AUTENTICACIÓN
 // ============================================
@@ -1756,6 +1813,16 @@ export const userMatchesPreferences = (user: any, preferences?: PreferencesData)
 // 🎮 GAMES ✅ NUEVO - AÑADIDO
 // ============================================
 
+const parseGameJsonArray = (value: any) => {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    return JSON.parse(value);
+  } catch {
+    return [];
+  }
+};
+
 /**
  * Obtener todos los juegos disponibles filtrados por NIT del usuario
  */
@@ -1777,6 +1844,8 @@ export const getGames = async (userPhone: string) => {
         data: data.data.map((game: any) => ({
           ...game,
           reward_points: game.reward_points,
+          questions: parseGameJsonArray(game.questions),
+          answers: parseGameJsonArray(game.answers),
         })),
       };
     }
@@ -1803,7 +1872,14 @@ export const getGameDetail = async (gameId: string) => {
 
     if (data.success) {
       console.log(`✅ Juego ${gameId} obtenido`);
-      return { success: true, data: data.data };
+      return {
+        success: true,
+        data: {
+          ...data.data,
+          questions: parseGameJsonArray(data.data?.questions),
+          answers: parseGameJsonArray(data.data?.answers),
+        },
+      };
     }
     return { success: false, error: data.error };
   } catch (err: any) {
@@ -1843,8 +1919,8 @@ export const playGame = async (
     const data = await response.json();
 
     if (response.ok && data.success) {
-      console.log(`✅ Juego registrado. Puntos: ${data.data.rewardPoints}`);
-      return { success: true, data: data.data };
+      console.log(`✅ Juego registrado. Puntos: ${data.pointsEarned ?? 0}`);
+      return { success: true, data };
     } else {
       return { success: false, error: data.error };
     }
@@ -1925,6 +2001,68 @@ export const redeemGamePoints = async (
   }
 };
 
+export const createGame = async (payload: {
+  telecomCompanyNit: string;
+  title: string;
+  description?: string;
+  fullDescription?: string;
+  rewardPoints?: number;
+  duration?: number;
+  gameType?: string;
+  icon?: string;
+  gameUrl?: string;
+  imageUrl?: string;
+  questions?: GameQuestion[];
+  answers?: GameAnswer[];
+  preferences?: PreferencesData;
+}) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/games`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      return { success: true, data };
+    }
+    return { success: false, error: data.error || 'No se pudo crear el juego' };
+  } catch (err: any) {
+    console.error('❌ Error en createGame:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const generateFakeAnswersWithAI = async (payload: {
+  question: string;
+  correctAnswer: string;
+  language?: 'es' | 'en';
+  count?: number;
+}) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/games/generate-fake-answers-ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      return {
+        success: true,
+        data: Array.isArray(data.data) ? data.data : (data.data?.fakeAnswers || []),
+      };
+    }
+    return { success: false, error: data.error || 'No se pudo generar respuestas con IA', data: [] };
+  } catch (err: any) {
+    console.error('❌ Error en generateFakeAnswersWithAI:', err);
+    return { success: false, error: err.message, data: [] };
+  }
+};
+
 // ============================================
 // 🎯 TIPOS DE DATOS / INTERFACES - AÑADIR GAME
 // ============================================
@@ -1940,11 +2078,26 @@ export interface Game {
   icon: string;
   game_url?: string;
   image_url?: string;
+  questions?: GameQuestion[];
+  answers?: GameAnswer[];
   status: "active" | "inactive";
   telecomCompanyNit?: string;
   preferences?: PreferencesData;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface GameQuestion {
+  id: number;
+  type: "multiple_choice" | "text";
+  question: string;
+  options?: string[];
+  required?: boolean;
+}
+
+export interface GameAnswer {
+  id: number;
+  correctAnswer: string;
 }
 
 // ============================================

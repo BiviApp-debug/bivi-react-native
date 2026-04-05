@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../../navigator/MainStackNavigator';
@@ -112,138 +113,236 @@ setUserPhone(authResponse?.usuario?.phone || "")
   };
 
   return (
-    <ScrollView style={styles.container}>
-      {dataLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Cargando misión...</Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+
+      {/* HEADER */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Detalles de Misión</Text>
+          <View style={{ width: 50 }} />
         </View>
-      ) : (
-        <>
-          <View style={styles.header}>
-            <Text style={styles.icon}>{mission.icon}</Text>
-            <Text style={styles.title}>{mission.title}</Text>
-            <Text style={styles.reward}>🎁 {mission.reward_points} MB</Text>
+      </View>
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {dataLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Cargando misión...</Text>
           </View>
+        ) : (
+          <>
+            {/* MISSION CARD */}
+            <View style={styles.missionCard}>
+              <View style={styles.missionHeader}>
+                <Text style={styles.missionIcon}>{mission.icon}</Text>
+                <View style={styles.missionInfo}>
+                  <Text style={styles.missionTitle}>{mission.title}</Text>
+                  <View style={styles.rewardBadge}>
+                    <Text style={styles.rewardText}>🎁 {mission.reward_points} MB</Text>
+                  </View>
+                </View>
+              </View>
 
-          <View style={styles.content}>
-            <Text style={styles.description}>{mission.description}</Text>
-            
-            {mission.fullDescription && (
-              <Text style={styles.fullDescription}>{mission.fullDescription}</Text>
-            )}
+              <Text style={styles.missionDescription}>{mission.description}</Text>
 
-            <View style={styles.infoCard}>
-              <Text style={styles.infoText}>⏱️ Duración: {mission.duration}</Text>
-              <Text style={styles.infoText}>📋 Tipo: {mission.type}</Text>
+              {mission.fullDescription && (
+                <Text style={styles.missionFullDescription}>{mission.fullDescription}</Text>
+              )}
+
+              <View style={styles.missionDetails}>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailIcon}>⏱️</Text>
+                  <Text style={styles.detailText}>Duración: {mission.duration}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailIcon}>📋</Text>
+                  <Text style={styles.detailText}>Tipo: {mission.type}</Text>
+                </View>
+              </View>
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.completeButton,
-                (completed || loading) && styles.disabledButton,
-              ]}
-              onPress={handleCompleteMission}
-              disabled={completed || loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text style={styles.completeButtonText}>
-                  {completed ? '✓ Completada' : 'Completar Misión'}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
+            {/* COMPLETE BUTTON */}
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.completeButton,
+                  (completed || loading) && styles.disabledButton,
+                ]}
+                onPress={handleCompleteMission}
+                disabled={completed || loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text style={styles.completeButtonText}>
+                    {completed ? '✓ Completada' : 'Completar Misión'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </ScrollView>
 
-          <SuccessModal
-            visible={showSuccess}
-            message={`¡Misión completada! Ganaste ${mission.reward_points} MB`}
-            onClose={() => setShowSuccess(false)}
-          />
+      <SuccessModal
+        visible={showSuccess}
+        message={`¡Misión completada! Ganaste ${mission.reward_points} MB`}
+        onClose={() => setShowSuccess(false)}
+      />
 
-          <ErrorModal
-            visible={showError}
-            message={errorMessage}
-            onClose={() => setShowError(false)}
-          />
-        </>
-      )}
-    </ScrollView>
+      <ErrorModal
+        visible={showError}
+        message={errorMessage}
+        onClose={() => setShowError(false)}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F4F1FF',
   },
+  // HEADER
   header: {
     backgroundColor: COLORS.primary,
-    padding: 24,
+    paddingTop: 50,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
   },
-  icon: {
-    fontSize: 48,
-    marginBottom: 12,
+  backButton: {
+    padding: 8,
   },
-  title: {
+  backButtonText: {
     fontSize: 24,
+    color: 'white',
     fontWeight: 'bold',
-    color: COLORS.textDark,
-    textAlign: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  // MISSION CARD
+  missionCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 16,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  missionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  missionIcon: {
+    fontSize: 40,
+    marginRight: 16,
+  },
+  missionInfo: {
+    flex: 1,
+  },
+  missionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
     marginBottom: 8,
   },
-  reward: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.textDark,
-    backgroundColor: 'rgba(0,0,0,0.1)',
+  rewardBadge: {
+    backgroundColor: `${COLORS.primary}15`,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 20,
+    alignSelf: 'flex-start',
   },
-  content: {
-    padding: 20,
+  rewardText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
-  description: {
+  missionDescription: {
     fontSize: 16,
     color: '#333',
     lineHeight: 24,
     marginBottom: 16,
   },
-  fullDescription: {
+  missionFullDescription: {
     fontSize: 14,
     color: '#666',
     lineHeight: 22,
     marginBottom: 20,
   },
-  infoCard: {
-    backgroundColor: '#f5f5f5',
-    padding: 16,
+  missionDetails: {
+    backgroundColor: '#f8f9fa',
     borderRadius: 12,
-    marginBottom: 24,
+    padding: 16,
   },
-  infoText: {
-    fontSize: 14,
-    color: '#555',
+  detailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 8,
+  },
+  detailIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  detailText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  // BUTTON CONTAINER
+  buttonContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   completeButton: {
     backgroundColor: COLORS.primary,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 25,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   disabledButton: {
     backgroundColor: '#ccc',
   },
   completeButtonText: {
-    color: COLORS.textDark,
+    color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,
@@ -254,6 +353,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: COLORS.textSecondary,
+    color: COLORS.primary,
   },
 });

@@ -190,11 +190,7 @@ export default function ClientProfilePhotoUploader({
         mimeType: selected.mimeType || "image/jpeg",
       };
 
-        console.log("📸 Archivo seleccionado:", {
-          name: selected.name,
-          size: selected.size,
-          type: selected.mimeType
-        });
+      
 
         // Validar tamaño (máximo 5MB)
         if (selectedFile.size && selectedFile.size > 5 * 1024 * 1024) {

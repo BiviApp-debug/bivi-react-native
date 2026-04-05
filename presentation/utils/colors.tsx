@@ -1,9 +1,9 @@
 // colors.ts
 export const COLORS = {
   // Colores principales
-  primary: '#FFC300',        // Amarillo dorado principal
-  primaryDark: '#E6B000',    // Amarillo más oscuro
-  primaryLight: '#FFD633',   // Amarillo más claro
+  primary: '#ff006a',        // Amarillo dorado principal
+  primaryDark: '#e60032',    // Amarillo más oscuro
+  primaryLight: '#ff3399',   // Amarillo más claro
   
   // Colores de fondo
   background: '#fff',     // Negro principal

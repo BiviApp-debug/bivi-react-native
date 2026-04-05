@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../../navigator/MainStackNavigator';
@@ -318,23 +319,42 @@ export default function SurveyDetailScreen({ route, navigation }: Readonly<Props
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+
+      {/* HEADER */}
       <View style={styles.header}>
-        <Text style={styles.icon}>{survey.icon}</Text>
-        <Text style={styles.title}>{survey.title}</Text>
-        <Text style={styles.reward}>🎁 {survey.reward_points} MB</Text>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Detalles de la Encuesta</Text>
+          <View style={{ width: 50 }} />
+        </View>
       </View>
 
-      <View style={styles.content}>
-        <Text style={styles.description}>{survey.description}</Text>
-        
-        {(survey.fullDescription || survey.full_description) && (
-          <Text style={styles.fullDescription}>{survey.fullDescription || survey.full_description}</Text>
-        )}
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* SURVEY INFO CARD */}
+        <View style={styles.surveyCard}>
+          <View style={styles.surveyHeader}>
+            <Text style={styles.surveyIcon}>{survey.icon}</Text>
+            <View style={styles.surveyInfo}>
+              <Text style={styles.surveyTitle}>{survey.title}</Text>
+              <Text style={styles.surveyReward}>🎁 {survey.reward_points} MB</Text>
+            </View>
+          </View>
 
-        <View style={styles.questionsContainer}>
+          <Text style={styles.surveyDescription}>{survey.description}</Text>
+
+          {(survey.fullDescription || survey.full_description) && (
+            <Text style={styles.surveyFullDescription}>{survey.fullDescription || survey.full_description}</Text>
+          )}
+        </View>
+
+        {/* QUESTIONS CARD */}
+        <View style={styles.questionsCard}>
           <Text style={styles.questionsTitle}>Preguntas:</Text>
-          
+
           {survey.questions?.map((question: any, index: number) => (
             <View key={question.id} style={styles.questionCard}>
               <Text style={styles.questionText}>
@@ -346,23 +366,26 @@ export default function SurveyDetailScreen({ route, navigation }: Readonly<Props
           ))}
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            (completed || loading) && styles.disabledButton,
-          ]}
-          onPress={handleSubmitSurvey}
-          disabled={completed || loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text style={styles.submitButtonText}>
-              {completed ? '✓ Encuesta completada' : 'Enviar respuestas'}
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
+        {/* ACTION CARD */}
+        <View style={styles.actionCard}>
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              (completed || loading) && styles.disabledButton,
+            ]}
+            onPress={handleSubmitSurvey}
+            disabled={completed || loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.submitButtonText}>
+                {completed ? '✓ Encuesta completada' : 'Enviar respuestas'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
 
       <SuccessModal
         visible={showSuccess}
@@ -375,70 +398,113 @@ export default function SurveyDetailScreen({ route, navigation }: Readonly<Props
         message={errorMessage}
         onClose={() => setShowError(false)}
       />
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.textDark,
-    fontWeight: '500',
+    backgroundColor: '#F4F1FF',
   },
   header: {
     backgroundColor: COLORS.primary,
-    padding: 20,
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  headerTop: {
+    flexDirection: 'row',
     alignItems: 'center',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    justifyContent: 'space-between',
   },
-  icon: {
-    fontSize: 40,
-    marginBottom: 8,
+  backButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  title: {
-    fontSize: 22,
+  backButtonText: {
+    color: 'white',
+    fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.textDark,
-    textAlign: 'center',
-    marginBottom: 8,
   },
-  reward: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.textDark,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
+  headerTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
-  content: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     padding: 20,
+    paddingBottom: 40,
   },
-  description: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 12,
-  },
-  fullDescription: {
-    fontSize: 14,
-    color: '#666',
+  surveyCard: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
     marginBottom: 20,
-    fontStyle: 'italic',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  questionsContainer: {
-    marginBottom: 24,
+  surveyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  surveyIcon: {
+    fontSize: 30,
+    marginRight: 15,
+  },
+  surveyInfo: {
+    flex: 1,
+  },
+  surveyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  surveyReward: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '600',
+  },
+  surveyDescription: {
+    fontSize: 16,
+    color: '#666',
+    lineHeight: 24,
+    marginBottom: 15,
+  },
+  surveyFullDescription: {
+    fontSize: 14,
+    color: '#888',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  questionsCard: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   questionsTitle: {
     fontSize: 18,
@@ -447,15 +513,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   questionCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#f8f9fa',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
   questionText: {
     fontSize: 15,
@@ -467,6 +530,47 @@ const styles = StyleSheet.create({
   required: {
     color: '#e74c3c',
     fontWeight: 'bold',
+  },
+  actionCard: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  submitButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 25,
+    alignItems: 'center',
+  },
+  disabledButton: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F4F1FF',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: COLORS.primary,
+    fontWeight: '500',
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -494,7 +598,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   ratingTextActive: {
-    color: '#fff',
+    color: 'white',
     fontWeight: '800',
   },
   optionButton: {
@@ -516,7 +620,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   optionTextActive: {
-    color: '#fff',
+    color: 'white',
     fontWeight: '700',
   },
   yesNoContainer: {
@@ -544,7 +648,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   yesNoTextActive: {
-    color: '#fff',
+    color: 'white',
     fontWeight: '700',
   },
   textInput: {
@@ -558,28 +662,5 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     marginTop: 8,
     fontFamily: 'System',
-  },
-  submitButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 40,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  disabledButton: {
-    backgroundColor: '#ccc',
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
   },
 });

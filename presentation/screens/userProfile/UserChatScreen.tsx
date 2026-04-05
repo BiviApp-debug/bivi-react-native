@@ -14,6 +14,7 @@ import {
   Image,
   ActivityIndicator,
   Modal,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,6 +30,7 @@ import { fetchMessages } from '../../utils/fetchMessages';
 import { sendMessageToServer } from '../../utils/sendMessage';
 import { takePhotoWithBase64, uploadImageToS3 } from '../../utils/cameraUtils';
 import ErrorModal from '../../components/ErrorModal';
+import COLORS from '../../utils/colors';
 
 const socket = io(`${API_BASE_URL}`, {
   transports: ["websocket"],
@@ -541,49 +543,52 @@ const isMyMessage = item.sender === mySender;
 
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={26} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.userInfo}>
-            {userPhoto ? (
-              <Image source={{ uri: userPhoto }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <Text style={styles.avatarText}>
-                  {userName?.charAt(0).toUpperCase() || 'U'}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.backButtonText}>←</Text>
+            </TouchableOpacity>
+            <View style={styles.userInfo}>
+              {userPhoto ? (
+                <Image source={{ uri: userPhoto }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                  <Text style={styles.avatarText}>
+                    {userName?.charAt(0).toUpperCase() || 'U'}
+                  </Text>
+                </View>
+              )}
+              <View>
+                <Text style={styles.userName} numberOfLines={1}>
+                  {userName || 'Usuario'}
+                </Text>
+                <Text style={styles.userStatus}>
+                  {authResponse.usuario.role === "driver_role" ? "Pasajero" : "Conductor"}
                 </Text>
               </View>
-            )}
-            <View>
-              <Text style={styles.userName} numberOfLines={1}>
-                {userName || 'Usuario'}
-              </Text>
-              <Text style={styles.userStatus}>
-                {authResponse.usuario.role === "driver_role" ? "Pasajero" : "Conductor"}
-              </Text>
             </View>
+            <TouchableOpacity
+              style={styles.phoneButton}
+              onPress={handleCall}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="call" size={24} color="#fff" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.phoneButton}
-            onPress={handleCall}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="call" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
 
         {/* Mensajes rápidos - visibles */}
         <View style={styles.quickMessagesContainer}>
@@ -701,6 +706,7 @@ const isMyMessage = item.sender === mySender;
         onClose={() => setShowErrorModal(false)}
       />
     </SafeAreaView>
+    </View>
   );
 }
 
@@ -708,18 +714,22 @@ const isMyMessage = item.sender === mySender;
 // STYLES
 // ============================================================
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F4F1FF',
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#F4F1FF',
   },
   keyboardView: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: '#F4F1FF',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.primary,
     paddingVertical: 12,
     paddingHorizontal: 14,
     minHeight: 56,
@@ -728,11 +738,25 @@ const styles = StyleSheet.create({
       android: { elevation: 4 },
     }),
   },
-  backButton: { marginRight: 10, padding: 4 },
+  backButton: {
+    marginRight: 10,
+    padding: 4,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backButtonText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
   userInfo: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12 },
   avatarPlaceholder: {
-    backgroundColor: '#FFB800',
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },

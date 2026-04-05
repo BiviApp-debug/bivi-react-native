@@ -1,375 +1,736 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    ScrollView,
-    ActivityIndicator,
-    Alert,
-    Linking,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  StatusBar,
+  Modal,
 } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../../navigator/MainStackNavigator';
 import COLORS from '../../utils/colors';
-import { playGame, getUserGameHistory, getGames } from './Biviconnectapi';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  GameQuestion,
+  generateFakeAnswersWithAI,
+  getGameDetail,
+  getUserGameHistory,
+  playGame,
+} from './Biviconnectapi';
 import SuccessModal from '../../components/SuccessModal';
 import ErrorModal from '../../components/ErrorModal';
-import { WebView } from 'react-native-webview';
 import { dataContext } from '../../context/Authcontext';
 
 type Props = StackScreenProps<RootStackParamList, 'GameDetailScreen'>;
 
-export default function GameDetailScreen({ route, navigation }: Props) {
-    const { game: initialGame } = route.params;
-    const [game, setGame] = useState(initialGame);
-    const [loading, setLoading] = useState(false);
-    const [dataLoading, setDataLoading] = useState(true);
-    const [completed, setCompleted] = useState(false);
-    const [showSuccess, setShowSuccess] = useState(false);
-    const [showError, setShowError] = useState(false);
-    const [errorMessage, setErrorMessage] = useState('');
-    const [userPhone, setUserPhone] = useState('');
-    const [showGame, setShowGame] = useState(false);
-    const [score, setScore] = useState(0);
+type QuizOption = {
+  id: string;
+  value: string;
+};
 
-    const { authResponse } = useContext(dataContext);
+const shuffle = <T,>(arr: T[]) => [...arr].sort(() => Math.random() - 0.5);
 
-    useEffect(() => {
-        setUserPhone(authResponse?.usuario?.phone || "")
-    }, [authResponse])
+export default function GameDetailScreen({ route, navigation }: Readonly<Props>) {
+  const { game: initialGame } = route.params;
+  const { authResponse } = useContext(dataContext);
 
-    useEffect(() => {
-        const getUserData = async () => {
-            const phone = await AsyncStorage.getItem('userPhone');
-            if (phone) {
-                setUserPhone(phone);
-                await loadGameData(phone);
-                checkIfPlayed(phone);
-            } else {
-                setDataLoading(false);
-            }
-        };
-        getUserData();
-    }, []);
+  const [game, setGame] = useState(initialGame);
+  const [userPhone, setUserPhone] = useState('');
+  const [dataLoading, setDataLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [completed, setCompleted] = useState(false);
 
-    const loadGameData = async (phone: string) => {
-        try {
-            const gamesRes = await getGames(phone);
-            if (gamesRes.success && gamesRes.data) {
-                const foundGame = gamesRes.data.find((g: any) => g.id === initialGame.id);
-                if (foundGame) {
-                    setGame(foundGame);
-                }
-            }
-        } catch (error) {
-            console.error('Error loading game data:', error);
-        } finally {
-            setDataLoading(false);
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
+  const [questionOptions, setQuestionOptions] = useState<Record<number, QuizOption[]>>({});
+  const [generatingOptions, setGeneratingOptions] = useState(false);
+
+  const [score, setScore] = useState(0);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showError, setShowError] = useState(false);
+  const [showRetryModal, setShowRetryModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [showWrongAnswers, setShowWrongAnswers] = useState(false);
+  const [wrongAnswersData, setWrongAnswersData] = useState<
+    Array<{ question: GameQuestion; correctAnswer: string; userAnswer: string }>
+  >([]);
+
+  const questions = useMemo(() => (Array.isArray(game?.questions) ? game.questions : []), [game]);
+  const answers = useMemo(() => (Array.isArray(game?.answers) ? game.answers : []), [game]);
+
+  useEffect(() => {
+    if (authResponse?.usuario?.phone) {
+      setUserPhone(authResponse.usuario.phone);
+    }
+  }, [authResponse]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const phone = authResponse?.usuario?.phone || '';
+        if (!phone) {
+          setDataLoading(false);
+          return;
         }
-    };
 
-    const checkIfPlayed = async (phone: string) => {
+        setUserPhone(phone);
+
+        const gameDetailRes = await getGameDetail(initialGame.id);
+        if (gameDetailRes.success && gameDetailRes.data) {
+          setGame(gameDetailRes.data);
+        }
+
         const history = await getUserGameHistory(phone);
         if (history.success && history.data) {
-            const alreadyPlayed = history.data.some((h: any) => h.gameId === game.id);
-            setCompleted(alreadyPlayed);
+          const alreadyPlayed = history.data.some((h: any) => h.gameId === initialGame.id);
+          setCompleted(alreadyPlayed);
         }
+      } catch (error: any) {
+        setErrorMessage(error?.message || 'Error cargando juego');
+        setShowError(true);
+      } finally {
+        setDataLoading(false);
+      }
     };
 
-    const handlePlayGame = () => {
-        if (completed) {
-            Alert.alert('Ya jugaste', 'Ya completaste este juego');
-            return;
-        }
+    loadData();
+  }, [authResponse?.usuario?.phone, initialGame.id]);
 
-        if (game.game_url) {
-            setShowGame(true);
-        } else {
-            Alert.alert('Juego no disponible', 'El juego no está disponible en este momento');
-        }
-    };
+  const getCorrectAnswerForQuestion = (questionId: number): string => {
+    const found = answers.find((a) => a.id === questionId);
+    return found?.correctAnswer || '';
+  };
 
-    const handleGameComplete = async (finalScore: number = 0) => {
-        if (!userPhone) {
-            setErrorMessage('No se encontró tu información');
-            setShowError(true);
-            return;
-        }
+  const buildOptionsForQuestion = async (question: GameQuestion): Promise<QuizOption[]> => {
+    const correctAnswer = getCorrectAnswerForQuestion(question.id);
+    const existingOptions = Array.isArray(question.options) ? question.options : [];
 
-        setLoading(true);
+    let baseOptions = existingOptions.filter((o) => o !== correctAnswer);
 
-        try {
-            const result = await playGame(userPhone, game.id, finalScore, 0);
+    if (baseOptions.length < 3) {
+      const aiRes = await generateFakeAnswersWithAI({
+        question: question.question,
+        correctAnswer,
+        language: 'es',
+        count: 3,
+      });
 
-            if (result.success) {
-                setCompleted(true);
-                setShowGame(false);
-                setShowSuccess(true);
-                setTimeout(() => {
-                    navigation.goBack();
-                }, 2000);
-            } else {
-                setErrorMessage(result.error || 'Error al registrar el juego');
-                setShowError(true);
-            }
-        } catch (error: any) {
-            setErrorMessage(error.message);
-            setShowError(true);
-        } finally {
-            setLoading(false);
-        }
-    };
+      if (aiRes.success && aiRes.data.length > 0) {
+        baseOptions = Array.from(new Set([...baseOptions, ...aiRes.data.filter((x: string) => x !== correctAnswer)]));
+      }
+    }
 
-    const handleWebViewMessage = (event: any) => {
-        try {
-            const data = JSON.parse(event.nativeEvent.data);
-            if (data.type === 'GAME_COMPLETE') {
-                setScore(data.score || 0);
-                handleGameComplete(data.score || 0);
-            }
-        } catch (e) {
-            console.log('Error parsing message:', e);
-        }
-    };
+    const finalOptions = shuffle(Array.from(new Set([correctAnswer, ...baseOptions])).slice(0, 4));
 
-    if (showGame) {
-        return (
-            <View style={styles.webViewContainer}>
-                <View style={styles.webViewHeader}>
-                    <TouchableOpacity
-                        style={styles.closeButton}
-                        onPress={() => setShowGame(false)}
-                    >
-                        <Text style={styles.closeButtonText}>✕ Cerrar</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.gameTitle}>{game.title}</Text>
+    return finalOptions.map((value, index) => ({
+      id: `${question.id}_${index}`,
+      value,
+    }));
+  };
+
+  const prepareQuiz = async () => {
+    if (completed) {
+      setErrorMessage('Ya completaste este juego');
+      setShowError(true);
+      return;
+    }
+
+    if (!questions.length) {
+      setErrorMessage('Este juego no tiene preguntas configuradas');
+      setShowError(true);
+      return;
+    }
+
+    setGeneratingOptions(true);
+
+    try {
+      const optionsByQuestion: Record<number, QuizOption[]> = {};
+
+      for (const q of questions) {
+        optionsByQuestion[q.id] = await buildOptionsForQuestion(q);
+      }
+
+      setQuestionOptions(optionsByQuestion);
+      setSelectedAnswers({});
+      setCurrentQuestionIndex(0);
+      setShowQuiz(true);
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Error preparando preguntas');
+      setShowError(true);
+    } finally {
+      setGeneratingOptions(false);
+    }
+  };
+
+  const handleSelectOption = (questionId: number, value: string) => {
+    setSelectedAnswers((prev) => ({ ...prev, [questionId]: value }));
+  };
+
+  const handleSubmitGame = async () => {
+    if (!userPhone) {
+      setErrorMessage('No se encontró tu información');
+      setShowError(true);
+      return;
+    }
+
+    const total = questions.length;
+    let correct = 0;
+    const wrongAnswers: Array<{ question: GameQuestion; correctAnswer: string; userAnswer: string }> = [];
+
+    questions.forEach((q) => {
+      const correctAnswer = getCorrectAnswerForQuestion(q.id);
+      const selected = selectedAnswers[q.id];
+      
+      if (selected === correctAnswer) {
+        correct++;
+      } else {
+        wrongAnswers.push({
+          question: q,
+          correctAnswer,
+          userAnswer: selected || 'No respondida',
+        });
+      }
+    });
+
+    const finalScore = total > 0 ? Math.round((correct / total) * 100) : 0;
+    setScore(finalScore);
+
+    // Si score <= 80%, mostrar modal para reintentar
+    if (finalScore <= 80) {
+      setShowRetryModal(true);
+      return;
+    }
+
+    // Si score > 80%, mostrar respuestas incorrectas y guardar puntos
+    setWrongAnswersData(wrongAnswers);
+    setShowQuiz(false);
+    setShowWrongAnswers(true);
+  };
+
+  const handleRetry = () => {
+    setShowRetryModal(false);
+    setSelectedAnswers({});
+    setCurrentQuestionIndex(0);
+  };
+
+  const handleConfirmWrongAnswers = async () => {
+    setLoading(true);
+    try {
+      const result = await playGame(userPhone, game.id, score, Number(game.duration || 0));
+      if (result.success) {
+        setCompleted(true);
+        setShowWrongAnswers(false);
+        setShowSuccess(true);
+        setTimeout(() => navigation.goBack(), 2000);
+      } else {
+        setErrorMessage(result.error || 'Error al registrar el juego');
+        setShowError(true);
+        setShowWrongAnswers(false);
+      }
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Error al completar juego');
+      setShowError(true);
+      setShowWrongAnswers(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderRetryModal = () => (
+    <Modal
+      visible={showRetryModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowRetryModal(false)}
+    >
+      <View style={styles.retryModalOverlay}>
+        <View style={styles.retryModalContent}>
+          <Text style={styles.retryModalTitle}>❌ Puntaje insuficiente</Text>
+          <Text style={styles.retryModalMessage}>
+            Puntaje: {score}%{'\n\n'}
+            Necesitas más del 80% de respuestas correctas para poder redimir puntos.
+            {'\n\n'}
+            ¿Deseas intentarlo nuevamente?
+          </Text>
+
+          <View style={styles.retryModalActions}>
+            <TouchableOpacity
+              style={[styles.retryButton, styles.retryButtonCancel]}
+              onPress={() => {
+                setShowRetryModal(false);
+                navigation.goBack();
+              }}
+            >
+              <Text style={styles.retryButtonText}>Salir</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.retryButton, styles.retryButtonRetry]}
+              onPress={handleRetry}
+            >
+              <Text style={[styles.retryButtonText, styles.retryButtonRetryText]}>
+                🔄 Otra vez
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  if (dataLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Cargando juego...</Text>
+      </View>
+    );
+  }
+
+  if (showWrongAnswers) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity onPress={() => setShowWrongAnswers(false)} style={styles.backButton}>
+              <Text style={styles.backButtonText}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Respuestas Incorrectas</Text>
+            <View style={{ width: 50 }} />
+          </View>
+        </View>
+
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.gameCard}>
+            <Text style={styles.scoreInfoText}>Puntaje: {score}%</Text>
+            <Text style={styles.wrongAnswersTitle}>Preguntas que fallaste:</Text>
+
+            {wrongAnswersData.map((item, index) => (
+              <View key={`${game.id}_wrong_${item.question.id}_${index}`} style={styles.wrongAnswerCard}>
+                <Text style={styles.wrongQuestionText}>{index + 1}. {item.question.question}</Text>
+                
+                <View style={styles.answerComparisonContainer}>
+                  <View style={styles.answerItem}>
+                    <Text style={styles.answerLabel}>Tu respuesta:</Text>
+                    <Text style={[styles.answerValue, styles.wrongAnswerValue]}>
+                      {item.userAnswer}
+                    </Text>
+                  </View>
+
+                  <View style={styles.answerItem}>
+                    <Text style={styles.answerLabel}>Respuesta correcta:</Text>
+                    <Text style={[styles.answerValue, styles.correctAnswerValue]}>
+                      {item.correctAnswer}
+                    </Text>
+                  </View>
                 </View>
-                <WebView
-                    source={{ uri: game.game_url! }}
-                    style={styles.webView}
-                    javaScriptEnabled={true}
-                    domStorageEnabled={true}
-                    onMessage={handleWebViewMessage}
-                    onError={() => {
-                        Alert.alert('Error', 'No se pudo cargar el juego');
-                        setShowGame(false);
-                    }}
-                />
-            </View>
-        );
-    }
+              </View>
+            ))}
 
-    if (dataLoading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-                <Text style={styles.loadingText}>Cargando juego...</Text>
-            </View>
-        );
-    }
+            <TouchableOpacity
+              style={[styles.playButton, loading && styles.disabledButton]}
+              disabled={loading}
+              onPress={handleConfirmWrongAnswers}
+            >
+              {loading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.playButtonText}>✓ Confirmar y Redimir Puntos</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+
+        <ErrorModal visible={showError} message={errorMessage} onClose={() => setShowError(false)} />
+        {renderRetryModal()}
+      </View>
+    );
+  }
+
+  if (showQuiz) {
+    const currentQuestion = questions[currentQuestionIndex];
+    const options = questionOptions[currentQuestion.id] || [];
+    const selected = selectedAnswers[currentQuestion.id];
+    const isLastQuestion = currentQuestionIndex === questions.length - 1;
 
     return (
-        <ScrollView style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.icon}>{game.icon}</Text>
-                <Text style={styles.title}>{game.title}</Text>
-                <Text style={styles.reward}>🎁 {game.reward_points} MB</Text>
-            </View>
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity onPress={() => setShowQuiz(false)} style={styles.backButton}>
+              <Text style={styles.backButtonText}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>{game.title}</Text>
+            <View style={{ width: 50 }} />
+          </View>
+        </View>
 
-            <View style={styles.content}>
-                <Text style={styles.description}>{game.description}</Text>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.gameCard}>
+            <Text style={styles.progressText}>
+              Pregunta {currentQuestionIndex + 1} de {questions.length}
+            </Text>
+            <Text style={styles.questionText}>{currentQuestion.question}</Text>
 
-                {game.fullDescription && (
-                    <Text style={styles.fullDescription}>{game.fullDescription}</Text>
-                )}
+            {options.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[styles.optionButton, selected === option.value && styles.optionButtonActive]}
+                onPress={() => handleSelectOption(currentQuestion.id, option.value)}
+              >
+                <Text style={[styles.optionText, selected === option.value && styles.optionTextActive]}>
+                  {option.value}
+                </Text>
+              </TouchableOpacity>
+            ))}
 
-                <View style={styles.infoCard}>
-                    <Text style={styles.infoText}>⏱️ Duración: {game.duration} minutos</Text>
-                    <Text style={styles.infoText}>🎮 Tipo: {game.game_type}</Text>
-                    {game.reward_points && (
-                        <Text style={styles.rewardInfo}>💰 Recompensa: {game.reward_points} MB</Text>
-                    )}
-                </View>
+            <View style={styles.quizActionsRow}>
+              <TouchableOpacity
+                style={[styles.navButton, currentQuestionIndex === 0 && styles.disabledButton]}
+                disabled={currentQuestionIndex === 0}
+                onPress={() => setCurrentQuestionIndex((prev) => Math.max(prev - 1, 0))}
+              >
+                <Text style={styles.navButtonText}>Anterior</Text>
+              </TouchableOpacity>
 
+              {isLastQuestion ? (
                 <TouchableOpacity
-                    style={[
-                        styles.playButton,
-                        (completed || loading) && styles.disabledButton,
-                    ]}
-                    onPress={handlePlayGame}
-                    disabled={completed || loading}
+                  style={[styles.navButton, (!selected || loading) && styles.disabledButton]}
+                  disabled={!selected || loading}
+                  onPress={handleSubmitGame}
                 >
-                    {loading ? (
-                        <ActivityIndicator color="white" />
-                    ) : (
-                        <Text style={styles.playButtonText}>
-                            {completed ? '✓ Juego completado' : '🎮 Jugar ahora'}
-                        </Text>
-                    )}
+                  {loading ? <ActivityIndicator color="white" /> : <Text style={styles.navButtonText}>Finalizar</Text>}
                 </TouchableOpacity>
-
-                {completed && !loading && (
-                    <View style={styles.completedCard}>
-                        <Text style={styles.completedCardText}>
-                            ¡Completaste este juego!
-                        </Text>
-                        <Text style={styles.completedCardSubtext}>
-                            Puntos obtenidos: {game.reward_points} MB
-                        </Text>
-                    </View>
-                )}
+              ) : (
+                <TouchableOpacity
+                  style={[styles.navButton, !selected && styles.disabledButton]}
+                  disabled={!selected}
+                  onPress={() => setCurrentQuestionIndex((prev) => prev + 1)}
+                >
+                  <Text style={styles.navButtonText}>Siguiente</Text>
+                </TouchableOpacity>
+              )}
             </View>
-
-            <SuccessModal
-                visible={showSuccess}
-                message={`¡Juego completado! Ganaste ${game.reward_points} MB${score > 0 ? ` (Puntaje: ${score})` : ''}`}
-                onClose={() => setShowSuccess(false)}
-            />
-
-            <ErrorModal
-                visible={showError}
-                message={errorMessage}
-                onClose={() => setShowError(false)}
-            />
+          </View>
         </ScrollView>
+
+        <ErrorModal visible={showError} message={errorMessage} onClose={() => setShowError(false)} />
+        {renderRetryModal()}
+      </View>
     );
+  }
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Detalles del Juego</Text>
+          <View style={{ width: 50 }} />
+        </View>
+      </View>
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.gameCard}>
+          <Text style={styles.gameTitle}>{game.title}</Text>
+          <Text style={styles.gameDescription}>{game.description}</Text>
+          <Text style={styles.metaText}>Preguntas: {questions.length}</Text>
+          <Text style={styles.metaText}>Recompensa: {game.reward_points} MB</Text>
+
+          <TouchableOpacity
+            style={[styles.playButton, (completed || generatingOptions) && styles.disabledButton]}
+            disabled={completed || generatingOptions}
+            onPress={prepareQuiz}
+          >
+            {generatingOptions ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.playButtonText}>{completed ? '✓ Juego completado' : '🎮 Iniciar quiz'}</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      <SuccessModal
+        visible={showSuccess}
+        message={`¡Juego completado! Ganaste ${game.reward_points} MB (Puntaje: ${score})`}
+        onClose={() => setShowSuccess(false)}
+      />
+
+      <ErrorModal
+        visible={showError}
+        message={errorMessage}
+        onClose={() => setShowError(false)}
+      />
+      {renderRetryModal()}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: COLORS.background,
-    },
-    header: {
-        backgroundColor: COLORS.primary,
-        padding: 24,
-        alignItems: 'center',
-        borderBottomLeftRadius: 20,
-        borderBottomRightRadius: 20,
-    },
-    icon: {
-        fontSize: 48,
-        marginBottom: 12,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: COLORS.textDark,
-        textAlign: 'center',
-        marginBottom: 8,
-    },
-    reward: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: COLORS.textDark,
-        backgroundColor: 'rgba(0,0,0,0.1)',
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 20,
-    },
-    content: {
-        padding: 20,
-    },
-    description: {
-        fontSize: 16,
-        color: '#333',
-        lineHeight: 24,
-        marginBottom: 16,
-    },
-    fullDescription: {
-        fontSize: 14,
-        color: '#666',
-        lineHeight: 22,
-        marginBottom: 20,
-    },
-    infoCard: {
-        backgroundColor: '#f5f5f5',
-        padding: 16,
-        borderRadius: 12,
-        marginBottom: 24,
-    },
-    infoText: {
-        fontSize: 14,
-        color: '#555',
-        marginBottom: 8,
-    },
-    rewardInfo: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: COLORS.primary,
-        marginTop: 8,
-    },
-    playButton: {
-        backgroundColor: COLORS.primary,
-        paddingVertical: 16,
-        borderRadius: 12,
-        alignItems: 'center',
-    },
-    disabledButton: {
-        backgroundColor: '#ccc',
-    },
-    playButtonText: {
-        color: COLORS.textDark,
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    completedCard: {
-        backgroundColor: '#4CAF50',
-        padding: 16,
-        borderRadius: 12,
-        alignItems: 'center',
-        marginTop: 16,
-    },
-    completedCardText: {
-        color: 'white',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    completedCardSubtext: {
-        color: 'white',
-        fontSize: 14,
-        marginTop: 4,
-    },
-    webViewContainer: {
-        flex: 1,
-        backgroundColor: '#000',
-    },
-    webViewHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        backgroundColor: COLORS.primary,
-    },
-    closeButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-    },
-    closeButtonText: {
-        color: COLORS.textDark,
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    gameTitle: {
-        flex: 1,
-        textAlign: 'center',
-        color: COLORS.textDark,
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: COLORS.background,
-    },
-    loadingText: {
-        marginTop: 16,
-        fontSize: 16,
-        color: COLORS.textSecondary,
-    },
-    webView: {
-        flex: 1,
-    },
+  container: {
+    flex: 1,
+    backgroundColor: '#F4F1FF',
+  },
+  header: {
+    backgroundColor: COLORS.primary,
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backButtonText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  headerTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  gameCard: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  gameTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+  },
+  gameDescription: {
+    fontSize: 15,
+    color: '#666',
+    marginBottom: 12,
+  },
+  metaText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 6,
+  },
+  playButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 25,
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  playButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  progressText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 10,
+  },
+  questionText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 16,
+    lineHeight: 24,
+  },
+  optionButton: {
+    backgroundColor: '#f4f4f4',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  optionButtonActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  optionText: {
+    fontSize: 15,
+    color: '#333',
+    fontWeight: '500',
+  },
+  optionTextActive: {
+    color: 'white',
+    fontWeight: '700',
+  },
+  quizActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 10,
+  },
+  navButton: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  navButtonText: {
+    color: 'white',
+    fontWeight: '700',
+  },
+  disabledButton: {
+    backgroundColor: '#bbb',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F4F1FF',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: COLORS.primary,
+    fontWeight: '500',
+  },
+  scoreInfoText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  wrongAnswersTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+  },
+  wrongAnswerCard: {
+    backgroundColor: '#fff3cd',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ff6b6b',
+  },
+  wrongQuestionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  answerComparisonContainer: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  answerItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  answerLabel: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+    marginBottom: 5,
+  },
+  answerValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    padding: 8,
+    borderRadius: 6,
+  },
+  wrongAnswerValue: {
+    backgroundColor: '#ffe0e0',
+    color: '#c92a2a',
+  },
+  correctAnswerValue: {
+    backgroundColor: '#e6f9e6',
+    color: '#2f9e44',
+  },
+  retryModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  retryModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 24,
+    marginHorizontal: 20,
+    alignItems: 'center',
+    maxWidth: '90%',
+  },
+  retryModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  retryModalMessage: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  retryModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  retryButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryButtonCancel: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  retryButtonRetry: {
+    backgroundColor: COLORS.primary,
+  },
+  retryButtonText: {
+    fontWeight: '600',
+    fontSize: 14,
+    color: '#333',
+  },
+  retryButtonRetryText: {
+    color: 'white',
+  },
 });
