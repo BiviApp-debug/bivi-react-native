@@ -6,11 +6,9 @@ import {
   TouchableOpacity,
   Text,
   StatusBar,
-  Alert,
   ScrollView,
   FlatList,
   Dimensions,
-  Image,
 } from "react-native";
 import { useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from "../../API/API";
@@ -31,10 +29,8 @@ import HistoryModal from './UserActivityHistoryModal';
 import { 
   UserData, 
   TelecomCompany, 
-  Mission, 
-  Offer, 
-  Survey,
   Game,
+  getUserAnalytics,
   getSurveys,
   getGames,
   getMissions,
@@ -50,6 +46,12 @@ const { width } = Dimensions.get('window');
 interface Props extends StackScreenProps<RootStackParamList, "UserProfileScreen"> { }
 
 type TabType = 'missions' | 'offers' | 'surveys' | 'games';
+
+interface AnalyticsTotals {
+  totalPoints: number;
+  totalRedeemed: number;
+  pointsRemaining: number;
+}
 
 const normalizeNit = (value?: string | null) =>
   (value || '').toString().trim().toLowerCase();
@@ -103,7 +105,7 @@ export default function UserProfileScreen({ navigation }: Props) {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const [successMessage] = useState("");
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // ===== CONTEXTO =====
@@ -112,6 +114,11 @@ export default function UserProfileScreen({ navigation }: Props) {
   // ===== OTROS ESTADOS =====
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
   const [totalPoints, setTotalPoints] = useState(0);
+  const [analyticsTotals, setAnalyticsTotals] = useState<AnalyticsTotals>({
+    totalPoints: 0,
+    totalRedeemed: 0,
+    pointsRemaining: 0,
+  });
   const [pointsBreakdown, setPointsBreakdown] = useState({
     missions: 0,
     offers: 0,
@@ -129,6 +136,7 @@ export default function UserProfileScreen({ navigation }: Props) {
       if (authResponse?.usuario?.phone) {
         calculateTotalPoints(authResponse.usuario.phone);
       }
+       connectSocket(authResponse.usuario.phone)
     }, [authResponse])
   );
 
@@ -219,19 +227,24 @@ export default function UserProfileScreen({ navigation }: Props) {
 
   const calculateTotalPoints = async (phone: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/user-analytics/${phone}`);
-      const data = await response.json();
-      if (data.success) {
-        setTotalPoints(data.data.summary.totalPoints || 0);
+      const analyticsResult = await getUserAnalytics(phone);
+      if (analyticsResult.success && analyticsResult.data?.summary) {
+        const summary = analyticsResult.data.summary;
+        setTotalPoints(summary.pointsRemaining || 0);
+        setAnalyticsTotals({
+          totalPoints: summary.totalPoints || 0,
+          totalRedeemed: summary.totalRedeemed || 0,
+          pointsRemaining: summary.pointsRemaining || 0,
+        });
         setPointsBreakdown({
-          missions: data.data.summary.pointsFromMissions || 0,
-          offers: data.data.summary.pointsFromVideos || 0,
-          surveys: data.data.summary.pointsFromSurveys || 0,
-          games: data.data.summary.pointsFromGames || 0,
-          missionsCompleted: data.data.summary.missionsCompleted || 0,
-          videosWatched: data.data.summary.videosWatched || 0,
-          surveysCompleted: data.data.summary.surveysCompleted || 0,
-          gamesPlayed: data.data.summary.gamesPlayed || 0
+          missions: summary.pointsFromMissions || 0,
+          offers: summary.pointsFromVideos || 0,
+          surveys: summary.pointsFromSurveys || 0,
+          games: summary.pointsFromGames || 0,
+          missionsCompleted: summary.missionsCompleted || 0,
+          videosWatched: summary.videosWatched || 0,
+          surveysCompleted: summary.surveysCompleted || 0,
+          gamesPlayed: summary.gamesPlayed || 0
         });
       }
     } catch (error) {
@@ -290,14 +303,17 @@ export default function UserProfileScreen({ navigation }: Props) {
   }
 
   const missionTotal = missions.length;
+  const offerTotal = offers.length;
   const surveyTotal = surveys.length;
   const gameTotal = games.length;
 
-  const missionsDone = Math.min(pointsBreakdown.missionsCompleted, missionTotal);
-  const surveysDone = Math.min(pointsBreakdown.surveysCompleted, surveyTotal);
-  const gamesDone = Math.min(pointsBreakdown.gamesPlayed, gameTotal);
+  const missionsDone = pointsBreakdown.missionsCompleted;
+  const offersDone = pointsBreakdown.videosWatched;
+  const surveysDone = pointsBreakdown.surveysCompleted;
+  const gamesDone = pointsBreakdown.gamesPlayed;
 
   const missionsPending = Math.max(missionTotal - missionsDone, 0);
+  const offersPending = Math.max(offerTotal - offersDone, 0);
   const surveysPending = Math.max(surveyTotal - surveysDone, 0);
   const gamesPending = Math.max(gameTotal - gamesDone, 0);
 
@@ -331,27 +347,38 @@ export default function UserProfileScreen({ navigation }: Props) {
           <View style={styles.pointsCard}>
             <Text style={styles.pointsIcon}>⭐</Text>
             <View style={styles.pointsInfo}>
-              <Text style={styles.pointsLabel}>Saldo acumulado</Text>
+              <Text style={styles.pointsLabel}>MB disponibles</Text>
               <Text style={styles.pointsValue}>{totalPoints.toLocaleString()} MB</Text>
+              <Text style={styles.pointsSubtitle}>
+                Ganados: {analyticsTotals.totalPoints.toLocaleString()} MB • Canjeados: {analyticsTotals.totalRedeemed.toLocaleString()} MB
+              </Text>
               <Text style={styles.pointsSubtitle}>+ {pointsBreakdown.missionsCompleted + pointsBreakdown.videosWatched + pointsBreakdown.surveysCompleted + pointsBreakdown.gamesPlayed} acciones</Text>
             </View>
           </View>
 
           <View style={styles.summaryRow}>
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryNumber}>{missionsDone}/{missionTotal}</Text>
+              <Text style={styles.summaryNumber}>{missionsDone}</Text>
               <Text style={styles.summaryLabel}>Misiones</Text>
-              <Text style={styles.summarySubLabel}>Faltan: {missionsPending}</Text>
+              <Text style={styles.summarySubLabel}>Disponibles: {missionTotal} • Faltan: {missionsPending}</Text>
             </View>
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryNumber}>{surveysDone}/{surveyTotal}</Text>
+              <Text style={styles.summaryNumber}>{offersDone}</Text>
+              <Text style={styles.summaryLabel}>Videos</Text>
+              <Text style={styles.summarySubLabel}>Disponibles: {offerTotal} • Faltan: {offersPending}</Text>
+            </View>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryNumber}>{surveysDone}</Text>
               <Text style={styles.summaryLabel}>Encuestas</Text>
-              <Text style={styles.summarySubLabel}>Faltan: {surveysPending}</Text>
+              <Text style={styles.summarySubLabel}>Disponibles: {surveyTotal} • Faltan: {surveysPending}</Text>
             </View>
             <View style={[styles.summaryCard, styles.summaryCardLast]}>
-              <Text style={styles.summaryNumber}>{gamesDone}/{gameTotal}</Text>
+              <Text style={styles.summaryNumber}>{gamesDone}</Text>
               <Text style={styles.summaryLabel}>Juegos</Text>
-              <Text style={styles.summarySubLabel}>Faltan: {gamesPending}</Text>
+              <Text style={styles.summarySubLabel}>Disponibles: {gameTotal} • Faltan: {gamesPending}</Text>
             </View>
           </View>
         </View>
@@ -359,6 +386,27 @@ export default function UserProfileScreen({ navigation }: Props) {
         {/* DESGLOSE DE PUNTOS */}
         <View style={styles.breakdownCard}>
           <Text style={styles.breakdownTitle}>📊 Desglose de puntos</Text>
+
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>⭐ Ganados</Text>
+            <Text style={styles.breakdownValue}>
+              {analyticsTotals.totalPoints.toLocaleString()} MB
+            </Text>
+          </View>
+
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>💰 Canjeados</Text>
+            <Text style={styles.breakdownValue}>
+              {analyticsTotals.totalRedeemed.toLocaleString()} MB
+            </Text>
+          </View>
+
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>🎁 Disponibles</Text>
+            <Text style={styles.breakdownValue}>
+              {analyticsTotals.pointsRemaining.toLocaleString()} MB
+            </Text>
+          </View>
 
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>🎯 Misiones</Text>

@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import SuccessModal from '../../components/SuccessModal';
 import ErrorModal from '../../components/ErrorModal';
 import { dataContext } from '../../context/Authcontext';
+import { connectSocket } from '../../utils/Conections';
 
 type Props = StackScreenProps<RootStackParamList, 'SurveyDetailScreen'>;
 
@@ -41,6 +42,7 @@ export default function SurveyDetailScreen({ route, navigation }: Readonly<Props
     if (authResponse?.usuario?.phone) {
       setUserPhone(authResponse.usuario.phone);
     }
+     connectSocket(authResponse.usuario.phone)
   }, [authResponse]);
 
   useEffect(() => {
@@ -334,6 +336,18 @@ export default function SurveyDetailScreen({ route, navigation }: Readonly<Props
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {completed && (
+          <View style={styles.completedBanner}>
+            <Text style={styles.completedBannerIcon}>✓</Text>
+            <View style={styles.completedBannerContent}>
+              <Text style={styles.completedBannerTitle}>Esta tarea ya fue completada</Text>
+              <Text style={styles.completedBannerText}>
+                Ya registramos esta encuesta en tu historial de actividades.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* SURVEY INFO CARD */}
         <View style={styles.surveyCard}>
           <View style={styles.surveyHeader}>
@@ -442,6 +456,43 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
+  },
+  completedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ecfdf3',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#b7ebc6',
+  },
+  completedBannerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#16a34a',
+    color: 'white',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    fontSize: 20,
+    fontWeight: '800',
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  completedBannerContent: {
+    flex: 1,
+  },
+  completedBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#166534',
+    marginBottom: 4,
+  },
+  completedBannerText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#2f6b45',
   },
   surveyCard: {
     backgroundColor: 'white',

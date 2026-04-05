@@ -7,22 +7,28 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Modal,
   StatusBar,
+  TextInput,
 } from "react-native";
 import COLORS from "../../utils/colors";
 import {
-  getGames,
-  getMissions,
-  getSurveys,
   getUserAnalytics,
   getUserGameHistory,
   getUserMissionHistory,
+  getUserOfferHistory,
   getUserRedemptions,
   getUserSurveyHistory,
+  getUnifiedUserHistory,
+  redeemGamePoints,
+  redeemMissionPoints,
+  redeemOfferPoints,
+  redeemSurveyPoints,
 } from "./Biviconnectapi";
 import { StackScreenProps } from "@react-navigation/stack";
 import { RootStackParamList } from "../../navigator/MainStackNavigator";
 import { dataContext } from "../../context/Authcontext";
+import { connectSocket } from "../../utils/Conections";
 
 
 
@@ -32,13 +38,17 @@ interface AnalyticsSummary {
   pointsRemaining: number;
   missionsCompleted: number;
   videosWatched: number;
+  surveysCompleted: number;
+  gamesPlayed: number;
   pointsFromMissions: number;
   pointsFromVideos: number;
+  pointsFromSurveys: number;
+  pointsFromGames: number;
 }
 
 interface ActivityItem {
   id: string;
-  type: "mission" | "survey" | "game";
+  type: "mission" | "offer" | "survey" | "game";
   title: string;
   points: number;
   date: string;
@@ -50,6 +60,13 @@ interface RedemptionItem {
   redemptionType: string;
   status: string;
   approvedAt?: string;
+}
+
+interface PendingRedeemItem {
+  id: string;
+  type: "mission" | "offer" | "survey" | "game";
+  points: number;
+  date: string;
 }
 
 type Props = StackScreenProps<RootStackParamList, 'AnalyticsScreen'>;
@@ -64,9 +81,18 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
   const [history, setHistory] = useState<ActivityItem[]>([]);
   const [redemptions, setRedemptions] = useState<RedemptionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRedeemingAll, setIsRedeemingAll] = useState(false);
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
+  const [redeemAmount, setRedeemAmount] = useState("");
   const [activeTab, setActiveTab] = useState<"summary" | "history" | "redeem">(
     "summary"
   );
+  const resolvedTelecomNit =
+    telecomCompanyNit || authResponse?.usuario?.telecomCompanyNit || "";
+
+  useEffect(()=>{
+     connectSocket(userPhone)
+  },[])
 
   useEffect(() => {
     loadAnalytics();
@@ -107,83 +133,219 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
 
   const loadHistoryByPhone = async () => {
     try {
-      const [missionHistoryRes, surveyHistoryRes, gameHistoryRes, missionsRes, surveysRes, gamesRes] = await Promise.all([
-        getUserMissionHistory(resolvedPhone),
-        getUserSurveyHistory(resolvedPhone),
-        getUserGameHistory(resolvedPhone),
-        getMissions(resolvedPhone),
-        getSurveys(resolvedPhone),
-        getGames(resolvedPhone),
-      ]);
-
-      const missionMap = asMapById(missionsRes?.success ? missionsRes.data : []);
-      const surveyMap = asMapById(surveysRes?.success ? surveysRes.data : []);
-      const gameMap = asMapById(gamesRes?.success ? gamesRes.data : []);
-
-      const missionItems: ActivityItem[] = (missionHistoryRes?.success ? missionHistoryRes.data : []).map((h: any, index: number) => {
-        const missionId = String(h?.missionId ?? h?.itemId ?? h?.id ?? `m-${index}`);
-        const mission = missionMap[missionId];
-        return {
-          id: String(h?.id ?? `mission-${missionId}-${index}`),
-          type: "mission",
-          title: mission?.title || h?.missionTitle || `Mision ${missionId}`,
-          points: getPointsValue(h),
-          date: getCompletedDate(h),
-        };
-      });
-
-      const surveyItems: ActivityItem[] = (surveyHistoryRes?.success ? surveyHistoryRes.data : []).map((h: any, index: number) => {
-        const surveyId = String(h?.surveyId ?? h?.itemId ?? h?.id ?? `s-${index}`);
-        const survey = surveyMap[surveyId];
-        return {
-          id: String(h?.id ?? `survey-${surveyId}-${index}`),
-          type: "survey",
-          title: survey?.title || h?.surveyTitle || `Encuesta ${surveyId}`,
-          points: getPointsValue(h),
-          date: getCompletedDate(h),
-        };
-      });
-
-      const gameItems: ActivityItem[] = (gameHistoryRes?.success ? gameHistoryRes.data : []).map((h: any, index: number) => {
-        const gameId = String(h?.gameId ?? h?.itemId ?? h?.id ?? `g-${index}`);
-        const game = gameMap[gameId];
-        return {
-          id: String(h?.id ?? `game-${gameId}-${index}`),
-          type: "game",
-          title: game?.title || h?.gameTitle || `Juego ${gameId}`,
-          points: getPointsValue(h),
-          date: getCompletedDate(h),
-        };
-      });
-
-      const merged = [...missionItems, ...surveyItems, ...gameItems].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      const unifiedHistoryRes = await getUnifiedUserHistory(resolvedPhone);
+      setHistory(
+        (unifiedHistoryRes?.success ? unifiedHistoryRes.data : []).map((item) => ({
+          id: item.id,
+          type: item.type,
+          title: item.title,
+          points: item.points,
+          date: item.completedAt,
+        }))
       );
-
-      setHistory(merged);
     } catch (error) {
       console.error("Error cargando historial por teléfono:", error);
     }
   };
 
-  const handleRedeemAllPoints = () => {
+  const buildPendingRedeemItems = async (): Promise<PendingRedeemItem[]> => {
+    const [missionHistoryRes, offerHistoryRes, surveyHistoryRes, gameHistoryRes] =
+      await Promise.all([
+        getUserMissionHistory(resolvedPhone),
+        getUserOfferHistory(resolvedPhone),
+        getUserSurveyHistory(resolvedPhone),
+        getUserGameHistory(resolvedPhone),
+      ]);
+
+    const pendingMissions: PendingRedeemItem[] = (missionHistoryRes?.success ? missionHistoryRes.data : [])
+      .filter((item: any) => !item?.redeemed && item?.id)
+      .map((item: any) => ({
+        id: String(item.id),
+        type: "mission",
+        points: getPointsValue(item),
+        date: getCompletedDate(item),
+      }));
+
+    const pendingOffers: PendingRedeemItem[] = (offerHistoryRes?.success ? offerHistoryRes.data : [])
+      .filter((item: any) => !item?.redeemed && item?.id)
+      .map((item: any) => ({
+        id: String(item.id),
+        type: "offer",
+        points: getPointsValue(item),
+        date: getCompletedDate(item),
+      }));
+
+    const pendingSurveys: PendingRedeemItem[] = (surveyHistoryRes?.success ? surveyHistoryRes.data : [])
+      .filter((item: any) => !item?.redeemed && item?.id)
+      .map((item: any) => ({
+        id: String(item.id),
+        type: "survey",
+        points: getPointsValue(item),
+        date: getCompletedDate(item),
+      }));
+
+    const pendingGames: PendingRedeemItem[] = (gameHistoryRes?.success ? gameHistoryRes.data : [])
+      .filter((item: any) => !item?.redeemed && item?.id)
+      .map((item: any) => ({
+        id: String(item.id),
+        type: "game",
+        points: getPointsValue(item),
+        date: getCompletedDate(item),
+      }));
+
+    return [...pendingMissions, ...pendingOffers, ...pendingSurveys, ...pendingGames].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+  };
+
+  const openRedeemModal = () => {
     if (!summary || summary.pointsRemaining <= 0) {
       Alert.alert("Sin puntos", "No tienes puntos disponibles para canjear.");
       return;
     }
 
+    if (!resolvedPhone || !resolvedTelecomNit || isRedeemingAll) {
+      return;
+    }
+
+    setRedeemAmount(String(summary.pointsRemaining));
+    setShowRedeemModal(true);
+  };
+
+  const handleRedeemAmountChange = (value: string) => {
+    const digitsOnly = value.replaceAll(/\D/g, "");
+
+    if (!digitsOnly) {
+      setRedeemAmount("");
+      return;
+    }
+
+    const parsedValue = Number(digitsOnly);
+    const maxAvailable = Math.max(0, summary?.pointsRemaining || 0);
+
+    if (!Number.isFinite(parsedValue)) {
+      setRedeemAmount("");
+      return;
+    }
+
+    setRedeemAmount(String(Math.min(parsedValue, maxAvailable)));
+  };
+
+  const handleRedeemAllPoints = async () => {
+    const parsedAmount = Number(redeemAmount);
+
+    if (!summary || summary.pointsRemaining <= 0) {
+      Alert.alert("Sin puntos", "No tienes puntos disponibles para canjear.");
+      return;
+    }
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert("Monto inválido", "Ingresa una cantidad válida de MB para redimir.");
+      return;
+    }
+
+    if (parsedAmount > summary.pointsRemaining) {
+      Alert.alert(
+        "Monto excedido",
+        `Solo tienes ${summary.pointsRemaining} MB disponibles para redimir.`
+      );
+      return;
+    }
+
+    if (!resolvedPhone || !resolvedTelecomNit) {
+      Alert.alert(
+        "Datos incompletos",
+        "No se pudo identificar el teléfono o la empresa telefónica para registrar el canje."
+      );
+      return;
+    }
+
+    if (isRedeemingAll) {
+      return;
+    }
+
     Alert.alert(
-      "Canjear todos los puntos",
-      `Vas a solicitar el canje de ${summary.pointsRemaining} puntos.`,
+      "Confirmar canje",
+      `Vas a redimir ${parsedAmount} MB. El sistema usa actividades completas, por lo que el total procesado puede superar levemente ese valor.`,
       [
         { text: "Cancelar", style: "cancel" },
         {
           text: "Confirmar",
-          onPress: () => {
-            Alert.alert(
-              "Solicitud enviada",
-              "Tu solicitud de canje total fue registrada."
-            );
+          onPress: async () => {
+            try {
+              setShowRedeemModal(false);
+              setIsRedeemingAll(true);
+
+              const pendingItems = await buildPendingRedeemItems();
+              const itemsToRedeem: PendingRedeemItem[] = [];
+              let accumulatedPoints = 0;
+
+              for (const item of pendingItems) {
+                if (accumulatedPoints >= parsedAmount) {
+                  break;
+                }
+
+                itemsToRedeem.push(item);
+                accumulatedPoints += item.points;
+              }
+
+              if (itemsToRedeem.length === 0) {
+                Alert.alert("Sin historial", "No encontramos actividades pendientes por redimir.");
+                return;
+              }
+
+              const redeemResults = await Promise.all(
+                itemsToRedeem.map((item) => {
+                  if (item.type === "mission") {
+                    return redeemMissionPoints(resolvedPhone, item.id, resolvedTelecomNit);
+                  }
+
+                  if (item.type === "offer") {
+                    return redeemOfferPoints(resolvedPhone, item.id, resolvedTelecomNit);
+                  }
+
+                  if (item.type === "survey") {
+                    return redeemSurveyPoints(resolvedPhone, item.id, resolvedTelecomNit);
+                  }
+
+                  return redeemGamePoints(resolvedPhone, item.id, resolvedTelecomNit);
+                })
+              );
+
+              const successfulRedemptions = redeemResults.filter((result) => result?.success);
+              const failedRedemptions = redeemResults.filter((result) => !result?.success);
+              const surveyFailures = itemsToRedeem.filter((item, index) => {
+                return item.type === "survey" && !redeemResults[index]?.success;
+              });
+
+              await loadAnalytics();
+
+              let message = `Se registraron ${successfulRedemptions.length} canjes.`;
+              message += `\n\nMonto solicitado: ${parsedAmount} MB.`;
+              message += `\nMonto procesado con actividades completas: ${itemsToRedeem.reduce((sum, item) => sum + item.points, 0)} MB.`;
+
+              if (surveyFailures.length > 0) {
+                message += `\n\n${surveyFailures.length} encuestas no se pudieron redimir. Verifica que el backend tenga /api/user-surveys/redeem.`;
+              }
+
+              if (failedRedemptions.length > 0) {
+                message += `\n\n${failedRedemptions.length} canjes fallaron. Revisa el backend o los historiales ya redimidos.`;
+              }
+
+              if (successfulRedemptions.length === 0 && failedRedemptions.length === 0) {
+                message = "No encontramos historiales pendientes por redimir.";
+              }
+
+              Alert.alert("Canje procesado", message);
+            } catch (error) {
+              console.error("Error canjeando todos los puntos:", error);
+              Alert.alert(
+                "Error",
+                "No se pudo registrar el canje total de puntos."
+              );
+            } finally {
+              setIsRedeemingAll(false);
+            }
           },
         },
       ]
@@ -221,18 +383,9 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
     );
   };
 
-  const asMapById = (items: any[] | undefined): Record<string, any> => {
-    if (!Array.isArray(items)) return {};
-    return items.reduce((acc: Record<string, any>, item: any) => {
-      if (item?.id !== undefined && item?.id !== null) {
-        acc[String(item.id)] = item;
-      }
-      return acc;
-    }, {});
-  };
-
   const historyTypeMeta: Record<ActivityItem["type"], { label: string; icon: string }> = {
     mission: { label: "📋 Misión", icon: "🎯" },
+    offer: { label: "🎥 Video", icon: "🎥" },
     survey: { label: "📝 Encuesta", icon: "📝" },
     game: { label: "🎮 Juego", icon: "🎮" },
   };
@@ -245,6 +398,11 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
       if (item.type === "mission") {
         acc.missionCount += 1;
         acc.missionPoints += item.points;
+      }
+
+      if (item.type === "offer") {
+        acc.offerCount += 1;
+        acc.offerPoints += item.points;
       }
 
       if (item.type === "survey") {
@@ -264,6 +422,8 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
       totalPoints: 0,
       missionCount: 0,
       missionPoints: 0,
+      offerCount: 0,
+      offerPoints: 0,
       surveyCount: 0,
       surveyPoints: 0,
       gameCount: 0,
@@ -368,11 +528,11 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
             <View style={styles.summarySection}>
               <View style={styles.largeCard}>
                 <Text style={styles.largeNumber}>
-                  {summary.totalPoints}
+                  {summary.pointsRemaining}
                 </Text>
-                <Text style={styles.largeLabel}>Puntos Totales</Text>
+                <Text style={styles.largeLabel}>MB Disponibles</Text>
                 <Text style={styles.largeSubtitle}>
-                  {telecomCompany?.currencySymbol || "RD$"}
+                  Ganados: {summary.totalPoints} MB • Canjeados: {summary.totalRedeemed} MB
                 </Text>
               </View>
             </View>
@@ -383,7 +543,7 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
               <View style={styles.statCard}>
                 <Text style={styles.statIcon}>📈</Text>
                 <Text style={styles.statNumber}>
-                  {summary.pointsFromMissions + summary.pointsFromVideos}
+                  {summary.pointsFromMissions + summary.pointsFromVideos + summary.pointsFromSurveys + summary.pointsFromGames}
                 </Text>
                 <Text style={styles.statLabel}>Ganados</Text>
               </View>
@@ -411,7 +571,9 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
                 <Text style={styles.statIcon}>✅</Text>
                 <Text style={styles.statNumber}>
                   {summary.missionsCompleted +
-                    summary.videosWatched}
+                    summary.videosWatched +
+                    summary.surveysCompleted +
+                    summary.gamesPlayed}
                 </Text>
                 <Text style={styles.statLabel}>Actividades</Text>
               </View>
@@ -436,6 +598,25 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
                   </View>
                   <Text style={styles.breakdownPoints}>
                     +{historyTotals.missionPoints}
+                  </Text>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.breakdownRow}>
+                  <View style={styles.breakdownLeft}>
+                    <Text style={styles.breakdownIcon}>🎥</Text>
+                    <View>
+                      <Text style={styles.breakdownLabel}>
+                        Videos Completados
+                      </Text>
+                      <Text style={styles.breakdownCount}>
+                        {historyTotals.offerCount}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.breakdownPoints}>
+                    +{historyTotals.offerPoints}
                   </Text>
                 </View>
 
@@ -504,7 +685,7 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
                 📱 {telecomCompany?.name}
               </Text>
               <Text style={styles.companyInfoText}>
-                Moneda: {telecomCompany?.currencySymbol}
+                Unidad: MB
               </Text>
               <Text style={styles.companyInfoText}>
                 NIT: {telecomCompanyNit}
@@ -560,13 +741,15 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
             <TouchableOpacity
               style={[
                 styles.redeemAllButton,
-                (!summary || summary.pointsRemaining <= 0) && styles.redeemAllButtonDisabled,
+                (!summary || summary.pointsRemaining <= 0 || isRedeemingAll) && styles.redeemAllButtonDisabled,
               ]}
-              disabled={!summary || summary.pointsRemaining <= 0}
-              onPress={handleRedeemAllPoints}
+              disabled={!summary || summary.pointsRemaining <= 0 || isRedeemingAll}
+              onPress={openRedeemModal}
             >
               <Text style={styles.redeemAllButtonText}>
-                Canjear todos los puntos ({summary?.pointsRemaining || 0})
+                {isRedeemingAll
+                  ? "Canjeando puntos..."
+                  : `Canjear puntos (${summary?.pointsRemaining || 0})`}
               </Text>
             </TouchableOpacity>
 
@@ -592,7 +775,7 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
                       )}
                     </View>
                     <Text style={styles.redeemPoints}>
-                      {item.pointsRedeemed} RD$
+                      {item.pointsRedeemed} MB
                     </Text>
                   </View>
                 </View>
@@ -607,6 +790,52 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
             )}
           </View>
         )}
+
+        <Modal
+          visible={showRedeemModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowRedeemModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.redeemModalCard}>
+              <Text style={styles.redeemModalTitle}>Canjear puntos</Text>
+              <Text style={styles.redeemModalSubtitle}>
+                Ingresa la cantidad de MB que quieres redimir. Disponible: {summary?.pointsRemaining || 0} MB.
+              </Text>
+              <TextInput
+                style={styles.redeemInput}
+                value={redeemAmount}
+                onChangeText={handleRedeemAmountChange}
+                placeholder="Ej: 120"
+                placeholderTextColor="#9a9a9a"
+                keyboardType="numeric"
+                editable={!isRedeemingAll}
+              />
+              <Text style={styles.redeemHintText}>
+                El sistema redime actividades completas. Por eso el total final puede quedar un poco por encima del monto solicitado.
+              </Text>
+              <View style={styles.redeemModalActions}>
+                <TouchableOpacity
+                  style={styles.redeemCancelButton}
+                  onPress={() => setShowRedeemModal(false)}
+                  disabled={isRedeemingAll}
+                >
+                  <Text style={styles.redeemCancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.redeemConfirmButton}
+                  onPress={handleRedeemAllPoints}
+                  disabled={isRedeemingAll}
+                >
+                  <Text style={styles.redeemConfirmButtonText}>
+                    {isRedeemingAll ? "Procesando..." : "Confirmar canje"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </View>
   );
@@ -985,6 +1214,85 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  redeemModalCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 22,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  redeemModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#2f2f2f',
+    marginBottom: 8,
+  },
+  redeemModalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  redeemInput: {
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2f2f2f',
+    marginBottom: 12,
+  },
+  redeemHintText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#7a7a7a',
+    marginBottom: 18,
+  },
+  redeemModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  redeemCancelButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#d0d0d0',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  redeemCancelButtonText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  redeemConfirmButton: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  redeemConfirmButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,

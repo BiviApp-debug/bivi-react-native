@@ -10,15 +10,11 @@ import {
 } from 'react-native';
 import COLORS from '../../utils/colors';
 import {
-  getGames,
-  getMissions,
-  getSurveys,
-  getUserGameHistory,
-  getUserMissionHistory,
-  getUserSurveyHistory,
+  getUserAnalytics,
+  getUnifiedUserHistory,
 } from './Biviconnectapi';
 
-type HistoryType = 'mission' | 'survey' | 'game';
+type HistoryType = 'mission' | 'offer' | 'survey' | 'game';
 
 type UnifiedHistoryItem = {
   id: string;
@@ -34,42 +30,15 @@ interface HistoryModalProps {
   userPhone: string;
 }
 
-const getPointsValue = (item: any): number => {
-  const value =
-    item?.pointsEarned ??
-    item?.rewardPoints ??
-    item?.pointsRedeemed ??
-    item?.points ??
-    item?.reward_points ??
-    0;
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const getCompletedDate = (item: any): string => {
-  return (
-    item?.completedAt ||
-    item?.playedAt ||
-    item?.watchedAt ||
-    item?.createdAt ||
-    item?.created_at ||
-    new Date().toISOString()
-  );
-};
-
-const asMapById = (items: any[] | undefined): Record<string, any> => {
-  if (!Array.isArray(items)) return {};
-  return items.reduce((acc: Record<string, any>, item: any) => {
-    if (item?.id !== undefined && item?.id !== null) {
-      acc[String(item.id)] = item;
-    }
-    return acc;
-  }, {});
+type AnalyticsSummary = {
+  totalPoints: number;
+  totalRedeemed: number;
+  pointsRemaining: number;
 };
 
 const typeMeta: Record<HistoryType, { label: string; icon: string; color: string }> = {
   mission: { label: 'Mision', icon: '🎯', color: '#0ea5e9' },
+  offer: { label: 'Video', icon: '🎥', color: '#f59e0b' },
   survey: { label: 'Encuesta', icon: '📝', color: '#8b5cf6' },
   game: { label: 'Juego', icon: '🎮', color: '#10b981' },
 };
@@ -89,6 +58,11 @@ const formatDate = (value: string): string => {
 const HistoryModal: React.FC<HistoryModalProps> = ({ visible, onClose, userPhone }) => {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<UnifiedHistoryItem[]>([]);
+  const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary>({
+    totalPoints: 0,
+    totalRedeemed: 0,
+    pointsRemaining: 0,
+  });
 
   useEffect(() => {
     const loadUnifiedHistory = async () => {
@@ -96,60 +70,20 @@ const HistoryModal: React.FC<HistoryModalProps> = ({ visible, onClose, userPhone
 
       setLoading(true);
       try {
-        const [missionHistoryRes, surveyHistoryRes, gameHistoryRes, missionsRes, surveysRes, gamesRes] = await Promise.all([
-          getUserMissionHistory(userPhone),
-          getUserSurveyHistory(userPhone),
-          getUserGameHistory(userPhone),
-          getMissions(userPhone),
-          getSurveys(userPhone),
-          getGames(userPhone),
+        const [analyticsRes, unifiedHistoryRes] = await Promise.all([
+          getUserAnalytics(userPhone),
+          getUnifiedUserHistory(userPhone),
         ]);
 
-        const missionMap = asMapById(missionsRes?.success ? missionsRes.data : []);
-        const surveyMap = asMapById(surveysRes?.success ? surveysRes.data : []);
-        const gameMap = asMapById(gamesRes?.success ? gamesRes.data : []);
+        if (analyticsRes?.success && analyticsRes.data?.summary) {
+          setAnalyticsSummary({
+            totalPoints: analyticsRes.data.summary.totalPoints || 0,
+            totalRedeemed: analyticsRes.data.summary.totalRedeemed || 0,
+            pointsRemaining: analyticsRes.data.summary.pointsRemaining || 0,
+          });
+        }
 
-        const missionItems: UnifiedHistoryItem[] = (missionHistoryRes?.success ? missionHistoryRes.data : []).map((h: any, index: number) => {
-          const missionId = String(h?.missionId ?? h?.itemId ?? h?.id ?? `m-${index}`);
-          const mission = missionMap[missionId];
-          return {
-            id: String(h?.id ?? `mission-${missionId}-${index}`),
-            type: 'mission',
-            title: mission?.title || h?.missionTitle || `Mision ${missionId}`,
-            points: getPointsValue(h),
-            completedAt: getCompletedDate(h),
-          };
-        });
-
-        const surveyItems: UnifiedHistoryItem[] = (surveyHistoryRes?.success ? surveyHistoryRes.data : []).map((h: any, index: number) => {
-          const surveyId = String(h?.surveyId ?? h?.itemId ?? h?.id ?? `s-${index}`);
-          const survey = surveyMap[surveyId];
-          return {
-            id: String(h?.id ?? `survey-${surveyId}-${index}`),
-            type: 'survey',
-            title: survey?.title || h?.surveyTitle || `Encuesta ${surveyId}`,
-            points: getPointsValue(h),
-            completedAt: getCompletedDate(h),
-          };
-        });
-
-        const gameItems: UnifiedHistoryItem[] = (gameHistoryRes?.success ? gameHistoryRes.data : []).map((h: any, index: number) => {
-          const gameId = String(h?.gameId ?? h?.itemId ?? h?.id ?? `g-${index}`);
-          const game = gameMap[gameId];
-          return {
-            id: String(h?.id ?? `game-${gameId}-${index}`),
-            type: 'game',
-            title: game?.title || h?.gameTitle || `Juego ${gameId}`,
-            points: getPointsValue(h),
-            completedAt: getCompletedDate(h),
-          };
-        });
-
-        const merged = [...missionItems, ...surveyItems, ...gameItems].sort(
-          (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-        );
-
-        setItems(merged);
+        setItems(unifiedHistoryRes?.success ? unifiedHistoryRes.data : []);
       } catch (error) {
         console.error('Error cargando historial unificado:', error);
         setItems([]);
@@ -161,15 +95,14 @@ const HistoryModal: React.FC<HistoryModalProps> = ({ visible, onClose, userPhone
     loadUnifiedHistory();
   }, [visible, userPhone]);
 
-  const summary = useMemo(() => {
+  const activitySummary = useMemo(() => {
     return items.reduce(
       (acc, item) => {
         acc.total += 1;
-        acc.points += item.points;
         acc[item.type] += 1;
         return acc;
       },
-      { total: 0, points: 0, mission: 0, survey: 0, game: 0 }
+      { total: 0, mission: 0, offer: 0, survey: 0, game: 0 }
     );
   }, [items]);
 
@@ -192,6 +125,34 @@ const HistoryModal: React.FC<HistoryModalProps> = ({ visible, onClose, userPhone
     );
   };
 
+  let content: React.ReactNode;
+
+  if (loading) {
+    content = (
+      <View style={styles.centerState}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.stateText}>Cargando historial...</Text>
+      </View>
+    );
+  } else if (items.length > 0) {
+    content = (
+      <FlatList
+        data={items}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+      />
+    );
+  } else {
+    content = (
+      <View style={styles.centerState}>
+        <Text style={styles.emptyIcon}>📭</Text>
+        <Text style={styles.stateText}>No hay misiones, encuestas o juegos completados aun.</Text>
+      </View>
+    );
+  }
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
@@ -204,33 +165,16 @@ const HistoryModal: React.FC<HistoryModalProps> = ({ visible, onClose, userPhone
         </View>
 
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Completados por el usuario</Text>
-          <Text style={styles.summaryMain}>{summary.total} actividades</Text>
-          <Text style={styles.summaryPoints}>Total ganado: {summary.points} MB</Text>
+          <Text style={styles.summaryTitle}>Resumen de MB</Text>
+          <Text style={styles.summaryMain}>{analyticsSummary.pointsRemaining} MB disponibles</Text>
+          <Text style={styles.summaryPoints}>Ganados: {analyticsSummary.totalPoints} MB</Text>
+          <Text style={styles.summaryPoints}>Canjeados: {analyticsSummary.totalRedeemed} MB</Text>
           <Text style={styles.summaryBreakdown}>
-            Misiones: {summary.mission} | Encuestas: {summary.survey} | Juegos: {summary.game}
+            Actividades: {activitySummary.total} | Misiones: {activitySummary.mission} | Videos: {activitySummary.offer} | Encuestas: {activitySummary.survey} | Juegos: {activitySummary.game}
           </Text>
         </View>
 
-        {loading ? (
-          <View style={styles.centerState}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.stateText}>Cargando historial...</Text>
-          </View>
-        ) : items.length > 0 ? (
-          <FlatList
-            data={items}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-          />
-        ) : (
-          <View style={styles.centerState}>
-            <Text style={styles.emptyIcon}>📭</Text>
-            <Text style={styles.stateText}>No hay misiones, encuestas o juegos completados aun.</Text>
-          </View>
-        )}
+        {content}
       </View>
     </Modal>
   );

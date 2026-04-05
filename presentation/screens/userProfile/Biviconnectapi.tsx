@@ -961,6 +961,131 @@ export const getUserRedemptions = async (userPhone: string) => {
   }
 };
 
+export type UnifiedActivityType = 'mission' | 'offer' | 'survey' | 'game';
+
+export interface UnifiedHistoryItem {
+  id: string;
+  type: UnifiedActivityType;
+  title: string;
+  points: number;
+  completedAt: string;
+}
+
+const getUnifiedHistoryPointsValue = (item: any): number => {
+  const value =
+    item?.pointsEarned ??
+    item?.rewardPoints ??
+    item?.pointsRedeemed ??
+    item?.points ??
+    item?.reward_points ??
+    0;
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getUnifiedHistoryCompletedDate = (item: any): string => {
+  return (
+    item?.completedAt ||
+    item?.playedAt ||
+    item?.watchedAt ||
+    item?.createdAt ||
+    item?.created_at ||
+    new Date().toISOString()
+  );
+};
+
+const asUnifiedHistoryMapById = (items: any[] | undefined): Record<string, any> => {
+  if (!Array.isArray(items)) return {};
+  return items.reduce((acc: Record<string, any>, item: any) => {
+    if (item?.id !== undefined && item?.id !== null) {
+      acc[String(item.id)] = item;
+    }
+    return acc;
+  }, {});
+};
+
+export const getUnifiedUserHistory = async (userPhone: string) => {
+  try {
+    if (!userPhone) {
+      return { success: true, data: [] as UnifiedHistoryItem[] };
+    }
+
+    const [missionHistoryRes, offerHistoryRes, surveyHistoryRes, gameHistoryRes, missionsRes, offersRes, surveysRes, gamesRes] = await Promise.all([
+      getUserMissionHistory(userPhone),
+      getUserOfferHistory(userPhone),
+      getUserSurveyHistory(userPhone),
+      getUserGameHistory(userPhone),
+      getMissions(userPhone),
+      getOffers(userPhone),
+      getSurveys(userPhone),
+      getGames(userPhone),
+    ]);
+
+    const missionMap = asUnifiedHistoryMapById(missionsRes?.success ? missionsRes.data : []);
+    const offerMap = asUnifiedHistoryMapById(offersRes?.success ? offersRes.data : []);
+    const surveyMap = asUnifiedHistoryMapById(surveysRes?.success ? surveysRes.data : []);
+    const gameMap = asUnifiedHistoryMapById(gamesRes?.success ? gamesRes.data : []);
+
+    const missionItems: UnifiedHistoryItem[] = (missionHistoryRes?.success ? missionHistoryRes.data : []).map((history: any, index: number) => {
+      const missionId = String(history?.missionId ?? history?.itemId ?? history?.id ?? `m-${index}`);
+      const mission = missionMap[missionId];
+      return {
+        id: String(history?.id ?? `mission-${missionId}-${index}`),
+        type: 'mission',
+        title: mission?.title || history?.missionTitle || `Mision ${missionId}`,
+        points: getUnifiedHistoryPointsValue(history),
+        completedAt: getUnifiedHistoryCompletedDate(history),
+      };
+    });
+
+    const offerItems: UnifiedHistoryItem[] = (offerHistoryRes?.success ? offerHistoryRes.data : []).map((history: any, index: number) => {
+      const offerId = String(history?.offerId ?? history?.itemId ?? history?.id ?? `o-${index}`);
+      const offer = offerMap[offerId];
+      return {
+        id: String(history?.id ?? `offer-${offerId}-${index}`),
+        type: 'offer',
+        title: offer?.title || history?.offerTitle || `Video ${offerId}`,
+        points: getUnifiedHistoryPointsValue(history),
+        completedAt: getUnifiedHistoryCompletedDate(history),
+      };
+    });
+
+    const surveyItems: UnifiedHistoryItem[] = (surveyHistoryRes?.success ? surveyHistoryRes.data : []).map((history: any, index: number) => {
+      const surveyId = String(history?.surveyId ?? history?.itemId ?? history?.id ?? `s-${index}`);
+      const survey = surveyMap[surveyId];
+      return {
+        id: String(history?.id ?? `survey-${surveyId}-${index}`),
+        type: 'survey',
+        title: survey?.title || history?.surveyTitle || `Encuesta ${surveyId}`,
+        points: getUnifiedHistoryPointsValue(history),
+        completedAt: getUnifiedHistoryCompletedDate(history),
+      };
+    });
+
+    const gameItems: UnifiedHistoryItem[] = (gameHistoryRes?.success ? gameHistoryRes.data : []).map((history: any, index: number) => {
+      const gameId = String(history?.gameId ?? history?.itemId ?? history?.id ?? `g-${index}`);
+      const game = gameMap[gameId];
+      return {
+        id: String(history?.id ?? `game-${gameId}-${index}`),
+        type: 'game',
+        title: game?.title || history?.gameTitle || `Juego ${gameId}`,
+        points: getUnifiedHistoryPointsValue(history),
+        completedAt: getUnifiedHistoryCompletedDate(history),
+      };
+    });
+
+    const merged = [...missionItems, ...offerItems, ...surveyItems, ...gameItems].sort(
+      (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+    );
+
+    return { success: true, data: merged };
+  } catch (err: any) {
+    console.error('❌ Error en getUnifiedUserHistory:', err);
+    return { success: false, error: err.message, data: [] as UnifiedHistoryItem[] };
+  }
+};
+
 /**
  * Obtener resumen de redenciones pendientes
  */
@@ -2169,6 +2294,42 @@ export const getUserSurveyHistory = async (userPhone: string) => {
   } catch (error: any) {
     console.error('❌ Error en getUserSurveyHistory:', error.message);
     return { success: true, data: [] };
+  }
+};
+
+/**
+ * Redimir puntos de una encuesta
+ */
+export const redeemSurveyPoints = async (
+  userPhone: string,
+  historyId: string,
+  telecomCompanyNit: string
+) => {
+  try {
+    if (!userPhone || !historyId) {
+      return { success: false, error: 'Faltan datos' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/user-surveys/redeem`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userPhone: userPhone.trim(),
+        historyId: historyId.trim(),
+        telecomCompanyNit,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      return { success: true, data };
+    }
+
+    return { success: false, error: data.error || 'No se pudo redimir la encuesta' };
+  } catch (err: any) {
+    console.error('❌ Error en redeemSurveyPoints:', err);
+    return { success: false, error: err.message };
   }
 };
 

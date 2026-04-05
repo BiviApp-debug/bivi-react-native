@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { updateUserPreferences, updateUserProfile } from "./Biviconnectapi";
 import { saveMessageToFirestore } from "../auth/login_user/loginFunctions";
 import ResetPasswordModalUserProfile from "../../utils/ResetPasswordModalUserProfile";
 import { dataContext } from "../../context/Authcontext";
+import { connectSocket } from "../../utils/Conections";
 
 type UserPreferences = {
   favoriteColors: string[];
@@ -264,6 +265,10 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
       setIsSavingPreferences(false);
     }
   };
+
+  useEffect(()=>{
+     connectSocket(authResponse.usuario.phone)
+  },[])
 
   const authPhone = authResponse?.usuario?.phone || profile?.phone || "";
 

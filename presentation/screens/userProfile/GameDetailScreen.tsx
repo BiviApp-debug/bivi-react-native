@@ -21,6 +21,7 @@ import {
 import SuccessModal from '../../components/SuccessModal';
 import ErrorModal from '../../components/ErrorModal';
 import { dataContext } from '../../context/Authcontext';
+import { connectSocket } from '../../utils/Conections';
 
 type Props = StackScreenProps<RootStackParamList, 'GameDetailScreen'>;
 
@@ -71,6 +72,7 @@ export default function GameDetailScreen({ route, navigation }: Readonly<Props>)
     if (authResponse?.usuario?.phone) {
       setUserPhone(authResponse.usuario.phone);
     }
+     connectSocket(authResponse.usuario.phone)
   }, [authResponse]);
 
   useEffect(() => {

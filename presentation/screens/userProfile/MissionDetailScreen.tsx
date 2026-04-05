@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import SuccessModal from '../../components/SuccessModal';
 import ErrorModal from '../../components/ErrorModal';
 import { dataContext } from '../../context/Authcontext';
+import { connectSocket } from '../../utils/Conections';
 
 type Props = StackScreenProps<RootStackParamList, 'MissionDetailScreen'>;
 
@@ -35,6 +36,7 @@ export default function MissionDetailScreen({ route, navigation }: Props) {
 
   useEffect(()=>{
 setUserPhone(authResponse?.usuario?.phone || "")
+ connectSocket(authResponse.usuario.phone)
   },[authResponse])
 
   useEffect(() => {
