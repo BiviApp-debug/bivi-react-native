@@ -7,7 +7,6 @@ import {
   ScrollView,
   ActivityIndicator,
   StatusBar,
-  Modal,
 } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../../navigator/MainStackNavigator';
@@ -49,9 +48,10 @@ export default function GameDetailScreen({ route, navigation }: Readonly<Props>)
   const [generatingOptions, setGeneratingOptions] = useState(false);
 
   const [score, setScore] = useState(0);
+  const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
+  const [earnedMegas, setEarnedMegas] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
-  const [showRetryModal, setShowRetryModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [showWrongAnswers, setShowWrongAnswers] = useState(false);
   const [wrongAnswersData, setWrongAnswersData] = useState<
@@ -60,6 +60,12 @@ export default function GameDetailScreen({ route, navigation }: Readonly<Props>)
 
   const questions = useMemo(() => (Array.isArray(game?.questions) ? game.questions : []), [game]);
   const answers = useMemo(() => (Array.isArray(game?.answers) ? game.answers : []), [game]);
+  const totalQuestions = questions.length;
+  const rewardPerQuestion = useMemo(() => {
+    if (!totalQuestions) return 0;
+    return Number(game?.reward_points || 0) / totalQuestions;
+  }, [game?.reward_points, totalQuestions]);
+  const canRedeem = score >= 80;
 
   useEffect(() => {
     if (authResponse?.usuario?.phone) {
@@ -196,24 +202,25 @@ export default function GameDetailScreen({ route, navigation }: Readonly<Props>)
     });
 
     const finalScore = total > 0 ? Math.round((correct / total) * 100) : 0;
+    const totalEarnedMegas = Number((correct * rewardPerQuestion).toFixed(2));
+
     setScore(finalScore);
-
-    // Si score <= 80%, mostrar modal para reintentar
-    if (finalScore <= 80) {
-      setShowRetryModal(true);
-      return;
-    }
-
-    // Si score > 80%, mostrar respuestas incorrectas y guardar puntos
+    setCorrectAnswersCount(correct);
+    setEarnedMegas(totalEarnedMegas);
     setWrongAnswersData(wrongAnswers);
     setShowQuiz(false);
     setShowWrongAnswers(true);
+
+    if (finalScore < 80) {
+      setErrorMessage('Necesitas completar al menos el 80% de respuestas correctas para redimir puntos.');
+    }
   };
 
   const handleRetry = () => {
-    setShowRetryModal(false);
     setSelectedAnswers({});
     setCurrentQuestionIndex(0);
+    setShowWrongAnswers(false);
+    setShowQuiz(true);
   };
 
   const handleConfirmWrongAnswers = async () => {
@@ -238,48 +245,6 @@ export default function GameDetailScreen({ route, navigation }: Readonly<Props>)
       setLoading(false);
     }
   };
-
-  const renderRetryModal = () => (
-    <Modal
-      visible={showRetryModal}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setShowRetryModal(false)}
-    >
-      <View style={styles.retryModalOverlay}>
-        <View style={styles.retryModalContent}>
-          <Text style={styles.retryModalTitle}>❌ Puntaje insuficiente</Text>
-          <Text style={styles.retryModalMessage}>
-            Puntaje: {score}%{'\n\n'}
-            Necesitas más del 80% de respuestas correctas para poder redimir puntos.
-            {'\n\n'}
-            ¿Deseas intentarlo nuevamente?
-          </Text>
-
-          <View style={styles.retryModalActions}>
-            <TouchableOpacity
-              style={[styles.retryButton, styles.retryButtonCancel]}
-              onPress={() => {
-                setShowRetryModal(false);
-                navigation.goBack();
-              }}
-            >
-              <Text style={styles.retryButtonText}>Salir</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.retryButton, styles.retryButtonRetry]}
-              onPress={handleRetry}
-            >
-              <Text style={[styles.retryButtonText, styles.retryButtonRetryText]}>
-                🔄 Otra vez
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
 
   if (dataLoading) {
     return (
@@ -307,7 +272,17 @@ export default function GameDetailScreen({ route, navigation }: Readonly<Props>)
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.gameCard}>
             <Text style={styles.scoreInfoText}>Puntaje: {score}%</Text>
-            <Text style={styles.wrongAnswersTitle}>Preguntas que fallaste:</Text>
+            <Text style={styles.metaSummaryText}>Aciertos: {correctAnswersCount}/{totalQuestions}</Text>
+            <Text style={styles.metaSummaryText}>Megas por pregunta: {rewardPerQuestion.toFixed(2)} MB</Text>
+            <Text style={styles.metaSummaryText}>Megas ganados: {earnedMegas.toFixed(2)} MB</Text>
+            <Text style={[styles.thresholdMessage, canRedeem ? styles.thresholdSuccess : styles.thresholdWarning]}>
+              {canRedeem
+                ? 'Cumpliste el 80% minimo. Puedes redimir tus puntos.'
+                : 'No alcanzaste el 80% minimo. No puedes redimir puntos en este intento.'}
+            </Text>
+            <Text style={styles.wrongAnswersTitle}>
+              {wrongAnswersData.length ? 'Preguntas incorrectas:' : 'No tuviste respuestas incorrectas'}
+            </Text>
 
             {wrongAnswersData.map((item, index) => (
               <View key={`${game.id}_wrong_${item.question.id}_${index}`} style={styles.wrongAnswerCard}>
@@ -331,22 +306,41 @@ export default function GameDetailScreen({ route, navigation }: Readonly<Props>)
               </View>
             ))}
 
-            <TouchableOpacity
-              style={[styles.playButton, loading && styles.disabledButton]}
-              disabled={loading}
-              onPress={handleConfirmWrongAnswers}
-            >
-              {loading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text style={styles.playButtonText}>✓ Confirmar y Redimir Puntos</Text>
-              )}
-            </TouchableOpacity>
+            {canRedeem ? (
+              <TouchableOpacity
+                style={[styles.playButton, loading && styles.disabledButton]}
+                disabled={loading}
+                onPress={handleConfirmWrongAnswers}
+              >
+                {loading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text style={styles.playButtonText}>✓ Confirmar y Redimir {earnedMegas.toFixed(2)} MB</Text>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.retryModalActions}>
+                <TouchableOpacity
+                  style={[styles.retryButton, styles.retryButtonCancel]}
+                  onPress={() => navigation.goBack()}
+                >
+                  <Text style={styles.retryButtonText}>Salir</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.retryButton, styles.retryButtonRetry]}
+                  onPress={handleRetry}
+                >
+                  <Text style={[styles.retryButtonText, styles.retryButtonRetryText]}>
+                    🔄 Otra vez
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </ScrollView>
 
         <ErrorModal visible={showError} message={errorMessage} onClose={() => setShowError(false)} />
-        {renderRetryModal()}
       </View>
     );
   }
@@ -420,7 +414,6 @@ export default function GameDetailScreen({ route, navigation }: Readonly<Props>)
         </ScrollView>
 
         <ErrorModal visible={showError} message={errorMessage} onClose={() => setShowError(false)} />
-        {renderRetryModal()}
       </View>
     );
   }
@@ -444,6 +437,8 @@ export default function GameDetailScreen({ route, navigation }: Readonly<Props>)
           <Text style={styles.gameDescription}>{game.description}</Text>
           <Text style={styles.metaText}>Preguntas: {questions.length}</Text>
           <Text style={styles.metaText}>Recompensa: {game.reward_points} MB</Text>
+          <Text style={styles.metaText}>Valor por pregunta: {rewardPerQuestion.toFixed(2)} MB</Text>
+          <Text style={styles.metaText}>Minimo para redimir: 80%</Text>
 
           <TouchableOpacity
             style={[styles.playButton, (completed || generatingOptions) && styles.disabledButton]}
@@ -461,7 +456,7 @@ export default function GameDetailScreen({ route, navigation }: Readonly<Props>)
 
       <SuccessModal
         visible={showSuccess}
-        message={`¡Juego completado! Ganaste ${game.reward_points} MB (Puntaje: ${score})`}
+        message={`¡Juego completado! Ganaste ${earnedMegas.toFixed(2)} MB (Puntaje: ${score}%)`}
         onClose={() => setShowSuccess(false)}
       />
 
@@ -470,7 +465,6 @@ export default function GameDetailScreen({ route, navigation }: Readonly<Props>)
         message={errorMessage}
         onClose={() => setShowError(false)}
       />
-      {renderRetryModal()}
     </View>
   );
 }
@@ -625,6 +619,30 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     textAlign: 'center',
     marginBottom: 10,
+  },
+  metaSummaryText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  thresholdMessage: {
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  thresholdSuccess: {
+    backgroundColor: '#e6f9e6',
+    color: '#2f9e44',
+  },
+  thresholdWarning: {
+    backgroundColor: '#fff3cd',
+    color: '#a15c00',
   },
   wrongAnswersTitle: {
     fontSize: 16,

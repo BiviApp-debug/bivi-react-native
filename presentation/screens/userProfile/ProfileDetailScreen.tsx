@@ -47,6 +47,13 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   favoriteActivities: [],
 };
 
+const GENDER_OPTIONS = [
+  "Masculino",
+  "Femenino",
+  "No binario",
+  "Prefiero no decirlo",
+];
+
 interface Props extends StackScreenProps<RootStackParamList, "ProfileDetailScreen"> { }
 
 export default function ProfileDetailScreen({ route, navigation }: Readonly<Props>) {
@@ -62,9 +69,23 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
     email: profile?.email || "",
     phone: profile?.phone || "",
     location: profile?.location || "",
+    gender: profile?.gender || "",
+    age: typeof profile?.age === "number" ? profile.age : 0,
+    dateOfBirth: profile?.dateOfBirth || "",
+    isMinor: !!profile?.isMinor,
   });
+  const [profileAge, setProfileAge] = useState<number | null>(
+    typeof profile?.age === "number" ? profile.age : null
+  );
+  const [profileIsMinor, setProfileIsMinor] = useState<boolean>(!!profile?.isMinor);
+  const [profileGender, setProfileGender] = useState<string>(profile?.gender || "");
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear() - 18);
+  const [selectedMonth, setSelectedMonth] = useState(1);
+  const [selectedDay, setSelectedDay] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
   const [showPreferencesModal, setShowPreferencesModal] = useState(false);
+  const [showPreferencesWarningModal, setShowPreferencesWarningModal] = useState(false);
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [isResetLoginLoading, setIsResetLoginLoading] = useState(false);
@@ -92,6 +113,11 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
   const userEmail = profile?.email || "No especificado";
   const userPhone = profile?.phone || "No especificado";
   const userRole = profile?.role === "user_client" ? "Usuario" : "Conductor";
+  const resolveMinorLabel = () => {
+    const isMinorValue = isEditing ? editedProfile.isMinor : profileIsMinor;
+    return isMinorValue ? "Menor" : "Mayor";
+  };
+  const isMinorLabel = resolveMinorLabel();
   const companyName = company?.name || "Sin empresa";
   const companyNit = company?.nit || "N/A";
   const companyCountry = company?.country || "N/A";
@@ -112,6 +138,10 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
       email: profile?.email || "",
       phone: profile?.phone || "",
       location: profile?.location || "",
+      gender: profileGender || profile?.gender || "",
+      age: profileAge ?? (typeof profile?.age === "number" ? profile.age : 0),
+      dateOfBirth: profile?.dateOfBirth || "",
+      isMinor: profileIsMinor,
     });
     setIsEditing(true);
   };
@@ -127,6 +157,9 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
     try {
       const result = await updateUserProfile(profile.id.toString(), editedProfile);
       if (result.success) {
+        setProfileAge(editedProfile.age);
+        setProfileIsMinor(editedProfile.isMinor);
+        setProfileGender(editedProfile.gender);
         Alert.alert("Éxito", "Perfil actualizado correctamente");
         setIsEditing(false);
         // Opcional: refrescar datos o navegar
@@ -142,6 +175,54 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
 
   const updateEditedField = (field: string, value: string) => {
     setEditedProfile(prev => ({ ...prev, [field]: value }));
+  };
+
+  const calculateAge = (dateString: string): number | null => {
+    try {
+      const [year, month, day] = dateString.split('-');
+      const birthDate = new Date(Number.parseInt(year, 10), Number.parseInt(month, 10) - 1, Number.parseInt(day, 10));
+      const today = new Date();
+
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+
+      return age;
+    } catch {
+      return null;
+    }
+  };
+
+  const openDatePicker = () => {
+    const dateValue = editedProfile.dateOfBirth;
+    if (dateValue && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+      const [year, month, day] = dateValue.split('-').map((v:any) => Number.parseInt(v, 10));
+      setSelectedYear(year);
+      setSelectedMonth(month);
+      setSelectedDay(day);
+    }
+    setShowDatePicker(true);
+  };
+
+  const handleConfirmDate = () => {
+    const dateString = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+    const calculatedAge = calculateAge(dateString);
+
+    if (calculatedAge !== null && calculatedAge >= 8 && calculatedAge <= 100) {
+      setEditedProfile((prev) => ({
+        ...prev,
+        dateOfBirth: dateString,
+        age: calculatedAge,
+        isMinor: calculatedAge < 18,
+      }));
+      setShowDatePicker(false);
+      return;
+    }
+
+    Alert.alert("Edad inválida", "Debes tener entre 8 y 100 años");
   };
 
   const togglePreference = (
@@ -185,6 +266,30 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
   };
 
   const authPhone = authResponse?.usuario?.phone || profile?.phone || "";
+
+  const handleOpenAnalytics = () => {
+    const analyticsPhone = authResponse?.usuario?.phone || profile?.phone;
+    const analyticsTelecomNit = company?.nit || profile?.telecomCompanyNit;
+
+    if (!analyticsPhone) {
+      Alert.alert("Info", "No se encontró el teléfono del usuario para cargar la actividad.");
+      return;
+    }
+
+    if (!analyticsTelecomNit) {
+      Alert.alert("Info", "No se encontró la empresa de telefonía asociada para cargar la actividad.");
+      return;
+    }
+
+    navigation.navigate("AnalyticsScreen", {
+      userPhone: analyticsPhone,
+      telecomCompanyNit: analyticsTelecomNit,
+      telecomCompany: company || {
+        name: profile?.telecomCompanyName || "Sin empresa",
+        nit: analyticsTelecomNit,
+      },
+    });
+  };
 
   const handleResetSuccess = async (resetPhone: string, resetPassword: string) => {
     setShowResetModal(false);
@@ -262,13 +367,13 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
           <View style={styles.profileStats}>
             <View style={styles.profileStatItem}>
               <Text style={styles.profileStatValue}>
-                {profile?.age || "—"}
+                {isEditing ? editedProfile.age : (profileAge ?? "—")}
               </Text>
               <Text style={styles.profileStatLabel}>años</Text>
             </View>
             <View style={styles.profileStatItem}>
               <Text style={styles.profileStatValue}>
-                {profile?.isMinor ? "Menor" : "Mayor"}
+                {isMinorLabel}
               </Text>
               <Text style={styles.profileStatLabel}>edad</Text>
             </View>
@@ -281,18 +386,31 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
           </View>
 
           {isEditing ? (
-            <View style={styles.editActions}>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
+            <>
+              <TouchableOpacity
+                style={styles.editBirthButton}
+                onPress={openDatePicker}
+              >
+                <Text style={styles.editBirthButtonText}>
+                  {editedProfile.dateOfBirth
+                    ? `Fecha de nacimiento: ${editedProfile.dateOfBirth}`
+                    : "Seleccionar fecha de nacimiento"}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={isSaving}>
-                {isSaving ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Text style={styles.saveButtonText}>Guardar</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+
+              <View style={styles.editActions}>
+                <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={isSaving}>
+                  {isSaving ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>Guardar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
           ) : (
             <TouchableOpacity
               style={styles.editButton}
@@ -350,6 +468,35 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
           <View style={styles.infoItem}>
             <View style={styles.infoIconContainer}>
               <Text style={styles.infoIcon}>👤</Text>
+            </View>
+            <View style={styles.infoContent}>
+              <Text style={styles.infoLabel}>Género</Text>
+              {isEditing ? (
+                <View style={styles.genderOptionsWrap}>
+                  {GENDER_OPTIONS.map((option) => {
+                    const selected = editedProfile.gender === option;
+                    return (
+                      <TouchableOpacity
+                        key={option}
+                        style={[styles.genderOption, selected && styles.genderOptionSelected]}
+                        onPress={() => updateEditedField('gender', option)}
+                      >
+                        <Text style={[styles.genderOptionText, selected && styles.genderOptionTextSelected]}>
+                          {option}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={styles.infoValue}>{profileGender || "No especificado"}</Text>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.infoItem}>
+            <View style={styles.infoIconContainer}>
+              <Text style={styles.infoIcon}>🪪</Text>
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Tipo de Cuenta</Text>
@@ -443,9 +590,7 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() =>
-              Alert.alert("Info", "Ver actividad - En desarrollo")
-            }
+            onPress={handleOpenAnalytics}
           >
             <Text style={styles.actionButtonIcon}>📊</Text>
             <Text style={styles.actionButtonText}>Ver mi actividad</Text>
@@ -453,13 +598,48 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => setShowPreferencesModal(true)}
+            onPress={() => setShowPreferencesWarningModal(true)}
           >
             <Text style={styles.actionButtonIcon}>⚙️</Text>
-            <Text style={styles.actionButtonText}>Configuración</Text>
+            <Text style={styles.actionButtonText}>Preferencias</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showPreferencesWarningModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowPreferencesWarningModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.warningModalCard}>
+            <Text style={styles.modalTitle}>Atención</Text>
+            <Text style={styles.warningModalText}>
+              Esta accion puede alterar el contenido que se va mostrar en tu perfil.
+            </Text>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowPreferencesWarningModal(false)}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSaveButton}
+                onPress={() => {
+                  setShowPreferencesWarningModal(false);
+                  setShowPreferencesModal(true);
+                }}
+              >
+                <Text style={styles.modalSaveButtonText}>Continuar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showPreferencesModal}
@@ -557,6 +737,127 @@ export default function ProfileDetailScreen({ route, navigation }: Readonly<Prop
         onClose={() => setShowResetModal(false)}
         onSuccess={handleResetSuccess}
       />
+
+      <Modal
+        visible={showDatePicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDatePicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.datePickerCard}>
+            <Text style={styles.modalTitle}>Fecha de nacimiento</Text>
+
+            <View style={{ marginBottom: 16 }}>
+              <Text style={styles.datePickerLabel}>Año</Text>
+              <View style={styles.datePickerListContainer}>
+                <ScrollView snapToInterval={40} decelerationRate="fast">
+                  {Array.from({ length: 100 }, (_, i) => {
+                    const year = new Date().getFullYear() - i;
+                    return (
+                      <TouchableOpacity
+                        key={year}
+                        onPress={() => setSelectedYear(year)}
+                        style={[
+                          styles.datePickerOption,
+                          selectedYear === year && styles.datePickerOptionSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.datePickerOptionText,
+                            selectedYear === year && styles.datePickerOptionTextSelected,
+                          ]}
+                        >
+                          {year}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </View>
+
+            <View style={{ marginBottom: 16 }}>
+              <Text style={styles.datePickerLabel}>Mes</Text>
+              <View style={styles.datePickerListContainer}>
+                <ScrollView
+                  contentContainerStyle={styles.datePickerMonthGrid}
+                >
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const month = i + 1;
+                    const monthName = new Date(2000, i, 1).toLocaleString('es-ES', { month: 'short' });
+                    return (
+                      <TouchableOpacity
+                        key={month}
+                        onPress={() => setSelectedMonth(month)}
+                        style={[
+                          styles.datePickerMonthOption,
+                          selectedMonth === month && styles.datePickerOptionSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.datePickerMonthText,
+                            selectedMonth === month && styles.datePickerOptionTextSelected,
+                          ]}
+                        >
+                          {monthName}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </View>
+
+            <View style={{ marginBottom: 20 }}>
+              <Text style={styles.datePickerLabel}>Día</Text>
+              <View style={styles.datePickerListContainer}>
+                <ScrollView contentContainerStyle={styles.datePickerDayGrid}>
+                  {Array.from({ length: 31 }, (_, i) => {
+                    const day = i + 1;
+                    return (
+                      <TouchableOpacity
+                        key={day}
+                        onPress={() => setSelectedDay(day)}
+                        style={[
+                          styles.datePickerDayOption,
+                          selectedDay === day && styles.datePickerOptionSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.datePickerDayText,
+                            selectedDay === day && styles.datePickerOptionTextSelected,
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                onPress={handleConfirmDate}
+                style={styles.modalSaveButton}
+              >
+                <Text style={styles.modalSaveButtonText}>Confirmar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(false)}
+                style={styles.modalCancelButton}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -672,6 +973,20 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
+  },
+  editBirthButton: {
+    width: '100%',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginTop: 4,
+    backgroundColor: COLORS.primary,
+  },
+  editBirthButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   nameInputs: {
     flexDirection: 'row',
@@ -893,11 +1208,102 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
   },
+  warningModalCard: {
+    backgroundColor: 'white',
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 16,
+    padding: 20,
+  },
+  warningModalText: {
+    fontSize: 14,
+    color: '#555',
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  datePickerCard: {
+    backgroundColor: 'white',
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 16,
+    padding: 16,
+  },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#333',
     marginBottom: 12,
+  },
+  datePickerLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },
+  datePickerListContainer: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    overflow: 'hidden',
+    height: 140,
+  },
+  datePickerOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'white',
+  },
+  datePickerOptionSelected: {
+    backgroundColor: COLORS.primary,
+  },
+  datePickerOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    textAlign: 'center',
+  },
+  datePickerOptionTextSelected: {
+    color: 'white',
+    fontWeight: '700',
+  },
+  datePickerMonthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    padding: 8,
+    justifyContent: 'space-between',
+  },
+  datePickerMonthOption: {
+    width: '30%',
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  datePickerMonthText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#333',
+  },
+  datePickerDayGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    padding: 8,
+    justifyContent: 'space-between',
+  },
+  datePickerDayOption: {
+    width: '13%',
+    aspectRatio: 1,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 10,
+  },
+  datePickerDayText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#333',
   },
   preferenceSectionTitle: {
     fontSize: 14,
@@ -931,6 +1337,33 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   preferenceTagTextSelected: {
+    color: 'white',
+  },
+  genderOptionsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 6,
+  },
+  genderOption: {
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 8,
+    marginBottom: 8,
+    backgroundColor: '#f8f9fa',
+  },
+  genderOptionSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  genderOptionText: {
+    color: '#333',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  genderOptionTextSelected: {
     color: 'white',
   },
   modalActions: {

@@ -1,25 +1,28 @@
 import { API_BASE_URL } from "../../../API/API";
 
-export const saveMessageToFirestore = async (
-  userName: string,
-  userLastName: string,
-  userMail: string,
-  userPassword: string,
-  userPhone: string,
-  dateOfBirth?: string,
-  age?: number,                        // ✅ NUEVO: Agregar age
-  isMinor?: string,                    // ✅ NUEVO: Agregar isMinor
-  location?: string,
+type RegisterUserPayload = {
+  userName: string;
+  userLastName: string;
+  userMail: string;
+  userPassword: string;
+  userPhone: string;
+  dateOfBirth?: string;
+  age?: number;
+  isMinor?: boolean;
+  location?: string;
   preferences?: {
     favoriteColors: string[];
     favoriteGenres: string[];
     favoriteActivities: string[];
-  },
-  documentUrl?: string,
-  documentType?: string,
-  telecomCompanyNit?: string,
-  telecomCompanyName?: string
-): Promise<any> => {
+  };
+  documentUrl?: string;
+  documentType?: string;
+  gender?: string;
+  telecomCompanyNit?: string;
+  telecomCompanyName?: string;
+};
+
+export const saveMessageToFirestore = async (payload: RegisterUserPayload): Promise<any> => {
   try {
     console.log('💾 Guardando usuario en servidor...');
 
@@ -30,20 +33,21 @@ export const saveMessageToFirestore = async (
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        name: userName,
-        lastName: userLastName,
-        email: userMail,
-        password: userPassword,
-        phone: userPhone,
-        dateOfBirth: dateOfBirth || null,
-        age: age || null,                      // ✅ Enviar age
-        isMinor: isMinor || 0,                 // ✅ Enviar isMinor
-        location: location || null,
-        preferences: preferences ? JSON.stringify(preferences) : null,
-        documentUrl: documentUrl || null,
-        documentType: documentType || null,
-        telecomCompanyNit: telecomCompanyNit || null,
-        telecomCompanyName: telecomCompanyName || null
+        name: payload.userName,
+        lastName: payload.userLastName,
+        email: payload.userMail,
+        password: payload.userPassword,
+        phone: payload.userPhone,
+        dateOfBirth: payload.dateOfBirth || null,
+        age: payload.age || null,
+        isMinor: !!payload.isMinor,
+        location: payload.location || null,
+        preferences: payload.preferences ? JSON.stringify(payload.preferences) : null,
+        documentUrl: payload.documentUrl || null,
+        documentType: payload.documentType || null,
+        gender: payload.gender || null,
+        telecomCompanyNit: payload.telecomCompanyNit || null,
+        telecomCompanyName: payload.telecomCompanyName || null
       }),
     });
 

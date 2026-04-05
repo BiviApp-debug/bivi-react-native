@@ -618,11 +618,11 @@ const styles = StyleSheet.create({
         padding: 8,
     },
     button: {
-        backgroundColor: '#6B2D7A',
+        backgroundColor: '#E91E63',
         paddingVertical: 14,
         borderRadius: 12,
         alignItems: 'center',
-        shadowColor: '#6B2D7A',
+        shadowColor: '#E91E63',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
         shadowRadius: 4,

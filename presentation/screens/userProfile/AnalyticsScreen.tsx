@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,13 +11,18 @@ import {
 } from "react-native";
 import COLORS from "../../utils/colors";
 import {
+  getGames,
+  getMissions,
+  getSurveys,
   getUserAnalytics,
+  getUserGameHistory,
+  getUserMissionHistory,
   getUserRedemptions,
-  redeemMissionPoints,
-  redeemOfferPoints,
+  getUserSurveyHistory,
 } from "./Biviconnectapi";
 import { StackScreenProps } from "@react-navigation/stack";
 import { RootStackParamList } from "../../navigator/MainStackNavigator";
+import { dataContext } from "../../context/Authcontext";
 
 
 
@@ -32,9 +37,9 @@ interface AnalyticsSummary {
 }
 
 interface ActivityItem {
-  type: "mission" | "video";
+  id: string;
+  type: "mission" | "survey" | "game";
   title: string;
-  icon: string;
   points: number;
   date: string;
 }
@@ -51,6 +56,9 @@ type Props = StackScreenProps<RootStackParamList, 'AnalyticsScreen'>;
 
 const AnalyticsScreen = ({ route, navigation }: Props) => {
   const { userPhone, telecomCompanyNit, telecomCompany } = route.params;
+  const { authResponse } = useContext(dataContext);
+  const authPhone = authResponse?.usuario?.phone || "";
+  const resolvedPhone = authPhone || userPhone;
   const onBack = () => navigation.goBack();
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [history, setHistory] = useState<ActivityItem[]>([]);
@@ -62,15 +70,21 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
 
   useEffect(() => {
     loadAnalytics();
-  }, [userPhone]);
+  }, [resolvedPhone]);
+
+  useEffect(() => {
+    if (activeTab === "history") {
+      loadHistoryByPhone();
+    }
+  }, [activeTab, resolvedPhone]);
 
   const loadAnalytics = async () => {
     try {
       setLoading(true);
 
       const [analyticsResult, redemptionsResult] = await Promise.all([
-        getUserAnalytics(userPhone),
-        getUserRedemptions(userPhone),
+        getUserAnalytics(resolvedPhone),
+        getUserRedemptions(resolvedPhone),
       ]);
 
       if (analyticsResult.success && analyticsResult.data) {
@@ -81,6 +95,9 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
       if (redemptionsResult.success) {
         setRedemptions(redemptionsResult.data || []);
       }
+
+      // Mantener el desglose alineado con el mismo historial unificado
+      await loadHistoryByPhone();
     } catch (error) {
       console.error("Error cargando analytics:", error);
     } finally {
@@ -88,11 +105,189 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
     }
   };
 
+  const loadHistoryByPhone = async () => {
+    try {
+      const [missionHistoryRes, surveyHistoryRes, gameHistoryRes, missionsRes, surveysRes, gamesRes] = await Promise.all([
+        getUserMissionHistory(resolvedPhone),
+        getUserSurveyHistory(resolvedPhone),
+        getUserGameHistory(resolvedPhone),
+        getMissions(resolvedPhone),
+        getSurveys(resolvedPhone),
+        getGames(resolvedPhone),
+      ]);
+
+      const missionMap = asMapById(missionsRes?.success ? missionsRes.data : []);
+      const surveyMap = asMapById(surveysRes?.success ? surveysRes.data : []);
+      const gameMap = asMapById(gamesRes?.success ? gamesRes.data : []);
+
+      const missionItems: ActivityItem[] = (missionHistoryRes?.success ? missionHistoryRes.data : []).map((h: any, index: number) => {
+        const missionId = String(h?.missionId ?? h?.itemId ?? h?.id ?? `m-${index}`);
+        const mission = missionMap[missionId];
+        return {
+          id: String(h?.id ?? `mission-${missionId}-${index}`),
+          type: "mission",
+          title: mission?.title || h?.missionTitle || `Mision ${missionId}`,
+          points: getPointsValue(h),
+          date: getCompletedDate(h),
+        };
+      });
+
+      const surveyItems: ActivityItem[] = (surveyHistoryRes?.success ? surveyHistoryRes.data : []).map((h: any, index: number) => {
+        const surveyId = String(h?.surveyId ?? h?.itemId ?? h?.id ?? `s-${index}`);
+        const survey = surveyMap[surveyId];
+        return {
+          id: String(h?.id ?? `survey-${surveyId}-${index}`),
+          type: "survey",
+          title: survey?.title || h?.surveyTitle || `Encuesta ${surveyId}`,
+          points: getPointsValue(h),
+          date: getCompletedDate(h),
+        };
+      });
+
+      const gameItems: ActivityItem[] = (gameHistoryRes?.success ? gameHistoryRes.data : []).map((h: any, index: number) => {
+        const gameId = String(h?.gameId ?? h?.itemId ?? h?.id ?? `g-${index}`);
+        const game = gameMap[gameId];
+        return {
+          id: String(h?.id ?? `game-${gameId}-${index}`),
+          type: "game",
+          title: game?.title || h?.gameTitle || `Juego ${gameId}`,
+          points: getPointsValue(h),
+          date: getCompletedDate(h),
+        };
+      });
+
+      const merged = [...missionItems, ...surveyItems, ...gameItems].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+
+      setHistory(merged);
+    } catch (error) {
+      console.error("Error cargando historial por teléfono:", error);
+    }
+  };
+
+  const handleRedeemAllPoints = () => {
+    if (!summary || summary.pointsRemaining <= 0) {
+      Alert.alert("Sin puntos", "No tienes puntos disponibles para canjear.");
+      return;
+    }
+
+    Alert.alert(
+      "Canjear todos los puntos",
+      `Vas a solicitar el canje de ${summary.pointsRemaining} puntos.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Confirmar",
+          onPress: () => {
+            Alert.alert(
+              "Solicitud enviada",
+              "Tu solicitud de canje total fue registrada."
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const getRedemptionTypeLabel = (redemptionType: string) => {
+    if (redemptionType === "mission") return "📋 Misión";
+    if (redemptionType === "video") return "🎬 Video";
+    if (redemptionType === "survey") return "📊 Encuesta";
+    return "🎮 Juego";
+  };
+
+  const getPointsValue = (item: any): number => {
+    const value =
+      item?.pointsEarned ??
+      item?.rewardPoints ??
+      item?.pointsRedeemed ??
+      item?.points ??
+      item?.reward_points ??
+      0;
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const getCompletedDate = (item: any): string => {
+    return (
+      item?.completedAt ||
+      item?.playedAt ||
+      item?.watchedAt ||
+      item?.createdAt ||
+      item?.created_at ||
+      new Date().toISOString()
+    );
+  };
+
+  const asMapById = (items: any[] | undefined): Record<string, any> => {
+    if (!Array.isArray(items)) return {};
+    return items.reduce((acc: Record<string, any>, item: any) => {
+      if (item?.id !== undefined && item?.id !== null) {
+        acc[String(item.id)] = item;
+      }
+      return acc;
+    }, {});
+  };
+
+  const historyTypeMeta: Record<ActivityItem["type"], { label: string; icon: string }> = {
+    mission: { label: "📋 Misión", icon: "🎯" },
+    survey: { label: "📝 Encuesta", icon: "📝" },
+    game: { label: "🎮 Juego", icon: "🎮" },
+  };
+
+  const historyTotals = history.reduce(
+    (acc, item) => {
+      acc.totalActivities += 1;
+      acc.totalPoints += item.points;
+
+      if (item.type === "mission") {
+        acc.missionCount += 1;
+        acc.missionPoints += item.points;
+      }
+
+      if (item.type === "survey") {
+        acc.surveyCount += 1;
+        acc.surveyPoints += item.points;
+      }
+
+      if (item.type === "game") {
+        acc.gameCount += 1;
+        acc.gamePoints += item.points;
+      }
+
+      return acc;
+    },
+    {
+      totalActivities: 0,
+      totalPoints: 0,
+      missionCount: 0,
+      missionPoints: 0,
+      surveyCount: 0,
+      surveyPoints: 0,
+      gameCount: 0,
+      gamePoints: 0,
+    }
+  );
+
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Cargando estadísticas...</Text>
+      <View style={styles.loadingScreen}>
+        <View style={styles.loadingCard}>
+          <Text style={styles.loadingIcon}>📊</Text>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingTitle}>Cargando estadisticas</Text>
+          <Text style={styles.loadingSubtitle}>
+            Estamos preparando tu resumen, historial y redenciones.
+          </Text>
+
+          <View style={styles.loadingDotsRow}>
+            <View style={[styles.loadingDot, styles.loadingDotActive]} />
+            <View style={styles.loadingDot} />
+            <View style={styles.loadingDot} />
+          </View>
+        </View>
       </View>
     );
   }
@@ -235,12 +430,12 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
                         Misiones Completadas
                       </Text>
                       <Text style={styles.breakdownCount}>
-                        {summary.missionsCompleted}
+                        {historyTotals.missionCount}
                       </Text>
                     </View>
                   </View>
                   <Text style={styles.breakdownPoints}>
-                    +{summary.pointsFromMissions}
+                    +{historyTotals.missionPoints}
                   </Text>
                 </View>
 
@@ -248,18 +443,18 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
 
                 <View style={styles.breakdownRow}>
                   <View style={styles.breakdownLeft}>
-                    <Text style={styles.breakdownIcon}>🎬</Text>
+                    <Text style={styles.breakdownIcon}>📝</Text>
                     <View>
                       <Text style={styles.breakdownLabel}>
-                        Videos Vistos
+                        Encuestas Completadas
                       </Text>
                       <Text style={styles.breakdownCount}>
-                        {summary.videosWatched}
+                        {historyTotals.surveyCount}
                       </Text>
                     </View>
                   </View>
                   <Text style={styles.breakdownPoints}>
-                    +{summary.pointsFromVideos}
+                    +{historyTotals.surveyPoints}
                   </Text>
                 </View>
 
@@ -267,18 +462,37 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
 
                 <View style={styles.breakdownRow}>
                   <View style={styles.breakdownLeft}>
-                    <Text style={styles.breakdownIcon}>💸</Text>
+                    <Text style={styles.breakdownIcon}>🎮</Text>
                     <View>
                       <Text style={styles.breakdownLabel}>
-                        Total Canjeado
+                        Juegos Completados
                       </Text>
                       <Text style={styles.breakdownCount}>
-                        Redenciones
+                        {historyTotals.gameCount}
                       </Text>
                     </View>
                   </View>
                   <Text style={styles.breakdownPoints}>
-                    -{summary.totalRedeemed}
+                    +{historyTotals.gamePoints}
+                  </Text>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.breakdownRow}>
+                  <View style={styles.breakdownLeft}>
+                    <Text style={styles.breakdownIcon}>⭐</Text>
+                    <View>
+                      <Text style={styles.breakdownLabel}>
+                        Total del Historial
+                      </Text>
+                      <Text style={styles.breakdownCount}>
+                        {historyTotals.totalActivities} actividades
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.breakdownPoints}>
+                    +{historyTotals.totalPoints}
                   </Text>
                 </View>
               </View>
@@ -303,18 +517,19 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
         {activeTab === "history" && (
           <View style={styles.historySection}>
             {history && history.length > 0 ? (
-              history.map((item, index) => (
-                <View key={index} style={styles.historyCard}>
+              history.map((item) => (
+                <View
+                  key={item.id}
+                  style={styles.historyCard}
+                >
                   <View style={styles.historyHeader}>
-                    <Text style={styles.historyIcon}>{item.icon}</Text>
+                    <Text style={styles.historyIcon}>{historyTypeMeta[item.type].icon}</Text>
                     <View style={styles.historyContent}>
                       <Text style={styles.historyTitle}>
                         {item.title}
                       </Text>
                       <Text style={styles.historyType}>
-                        {item.type === "mission"
-                          ? "📋 Misión"
-                          : "🎬 Video"}
+                        {historyTypeMeta[item.type].label}
                       </Text>
                       <Text style={styles.historyDate}>
                         {new Date(item.date).toLocaleDateString(
@@ -342,19 +557,26 @@ const AnalyticsScreen = ({ route, navigation }: Props) => {
         {/* REDENCIONES */}
         {activeTab === "redeem" && (
           <View style={styles.redeemSection}>
+            <TouchableOpacity
+              style={[
+                styles.redeemAllButton,
+                (!summary || summary.pointsRemaining <= 0) && styles.redeemAllButtonDisabled,
+              ]}
+              disabled={!summary || summary.pointsRemaining <= 0}
+              onPress={handleRedeemAllPoints}
+            >
+              <Text style={styles.redeemAllButtonText}>
+                Canjear todos los puntos ({summary?.pointsRemaining || 0})
+              </Text>
+            </TouchableOpacity>
+
             {redemptions && redemptions.length > 0 ? (
-              redemptions.map((item, index) => (
-                <View key={index} style={styles.redeemCard}>
+              redemptions.map((item) => (
+                <View key={item.id} style={styles.redeemCard}>
                   <View style={styles.redeemHeader}>
                     <View style={styles.redeemInfo}>
                       <Text style={styles.redeemLabel}>
-                        {item.redemptionType === "mission"
-                          ? "📋 Misión"
-                          : item.redemptionType === "video"
-                          ? "🎬 Video"
-                          : item.redemptionType === "survey"
-                          ? "📊 Encuesta"
-                          : "🎮 Juego"}
+                        {getRedemptionTypeLabel(item.redemptionType)}
                       </Text>
                       <Text style={styles.redeemStatus}>
                         {item.status === "completed"
@@ -500,14 +722,16 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
     marginBottom: 20,
   },
   statCard: {
-    flex: 1,
     backgroundColor: 'white',
     borderRadius: 15,
     padding: 20,
-    marginHorizontal: 5,
+    width: '48%',
+    marginBottom: 10,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
@@ -681,6 +905,21 @@ const styles = StyleSheet.create({
   redeemSection: {
     marginBottom: 20,
   },
+  redeemAllButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  redeemAllButtonDisabled: {
+    backgroundColor: '#bdbdbd',
+  },
+  redeemAllButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   redeemCard: {
     backgroundColor: 'white',
     borderRadius: 15,
@@ -752,6 +991,63 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F4F1FF',
+  },
+  loadingScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F4F1FF',
+    paddingHorizontal: 24,
+  },
+  loadingCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  loadingIcon: {
+    fontSize: 38,
+    marginBottom: 10,
+  },
+  loadingTitle: {
+    marginTop: 14,
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#2f2f2f',
+    textAlign: 'center',
+  },
+  loadingSubtitle: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 19,
+    paddingHorizontal: 6,
+  },
+  loadingDotsRow: {
+    flexDirection: 'row',
+    marginTop: 16,
+  },
+  loadingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#d9d9d9',
+    marginHorizontal: 4,
+  },
+  loadingDotActive: {
+    backgroundColor: COLORS.primary,
   },
   loadingText: {
     marginTop: 16,

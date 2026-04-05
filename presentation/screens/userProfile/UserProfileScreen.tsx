@@ -51,6 +51,38 @@ interface Props extends StackScreenProps<RootStackParamList, "UserProfileScreen"
 
 type TabType = 'missions' | 'offers' | 'surveys' | 'games';
 
+const normalizeNit = (value?: string | null) =>
+  (value || '').toString().trim().toLowerCase();
+
+const getItemTelecomNit = (item: any): string | undefined => {
+  return (
+    item?.telecomCompanyNit ||
+    item?.telecom_company_nit ||
+    item?.telecomCompany?.nit ||
+    item?.company?.nit ||
+    item?.companyNit
+  );
+};
+
+const filterByUserTelecomCompany = (items: any[], userData: UserData): any[] => {
+  const userTelecomNit = normalizeNit(userData?.telecomCompanyNit);
+
+  if (!userTelecomNit) return [];
+
+  const hasTelecomNitInItems = items.some((item: any) => !!normalizeNit(getItemTelecomNit(item)));
+
+  // Si el backend ya filtró por teléfono pero no devuelve el NIT en cada item,
+  // no debemos vaciar la lista en frontend.
+  if (!hasTelecomNitInItems) {
+    return items;
+  }
+
+  return items.filter((item: any) => {
+    const itemTelecomNit = normalizeNit(getItemTelecomNit(item));
+    return !!itemTelecomNit && itemTelecomNit === userTelecomNit;
+  });
+};
+
 export default function UserProfileScreen({ navigation }: Props) {
   // ===== ESTADOS DE DATOS =====
   const [user, setUser] = useState<UserData | null>(null);
@@ -134,31 +166,39 @@ export default function UserProfileScreen({ navigation }: Props) {
           setMissions(filtered);
         }
 
-        // Cargar ofertas y filtrar por similitud
+        // Cargar ofertas/videos y filtrar por empresa telefónica + similitud
         const offersRes = await getOffers(userData.user.phone);
         if (offersRes.success && offersRes.data) {
-          const filtered = filterItemsBySimilarity(offersRes.data, userData.user, 30);
+          const telecomFiltered = filterByUserTelecomCompany(offersRes.data, userData.user);
+          const filtered = filterItemsBySimilarity(
+            telecomFiltered as { preferences?: any; telecomCompanyNit?: string }[],
+            userData.user,
+            30
+          );
           setOffers(filtered);
+          console.log('✅ Videos cargados por empresa:', filtered.length);
         }
 
-        // Cargar encuestas y filtrar por NIT y preferencias
+        // Cargar encuestas y filtrar por empresa telefónica + preferencias
         const surveysRes = await getSurveys(userData.user.phone);
         if (surveysRes.success && surveysRes.data && userData.user) {
-          const filtered = surveysRes.data.filter((survey:any) => 
+          const telecomFiltered = filterByUserTelecomCompany(surveysRes.data, userData.user);
+          const filtered = telecomFiltered.filter((survey:any) => 
             isItemCompatible(userData.user!, survey, 30)
           );
           setSurveys(filtered);
-          console.log('✅ Encuestas cargadas:', filtered.length);
+          console.log('✅ Encuestas cargadas por empresa:', filtered.length);
         }
 
-        // Cargar juegos y filtrar por NIT y preferencias
+        // Cargar juegos y filtrar por empresa telefónica + preferencias
         const gamesRes = await getGames(userData.user.phone);
         if (gamesRes.success && gamesRes.data && userData.user) {
-          const filtered = gamesRes.data.filter((game:any) => 
+          const telecomFiltered = filterByUserTelecomCompany(gamesRes.data, userData.user);
+          const filtered = telecomFiltered.filter((game:any) => 
             isItemCompatible(userData.user!, game, 30)
           );
-          setGames(filtered);
-          console.log('✅ Juegos cargados:', filtered.length);
+          setGames(filtered as Game[]);
+          console.log('✅ Juegos cargados por empresa:', filtered.length);
         }
 
         await loadClientProfilePhoto(userPhone);
@@ -269,7 +309,7 @@ export default function UserProfileScreen({ navigation }: Props) {
         {/* HEADER */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <TouchableOpacity onPress={handleLogout} style={styles.backButton}>
               <Text style={styles.backButtonText}>←</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowHistoryModal(true)} style={styles.historyButton}>
@@ -845,6 +885,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopWidth: 1,
     borderTopColor: '#eee',
+    paddingBottom: 40,
+    minHeight: 60
   },
   actionButton: {
     flex: 1,

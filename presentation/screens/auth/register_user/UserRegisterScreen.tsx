@@ -8,10 +8,9 @@ import DefaultTextInput from '../../../components/DefaultTextInput';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../../../navigator/MainStackNavigator';
 import styles from './Styles';
-import { useContext, useState, useRef, useEffect, useCallback } from 'react';
+import React, { useContext, useState, useRef, useEffect, useCallback } from 'react';
 import validatePhone from '../../../utils/PhoneValidator';
 import validateEmail from '../../../utils/EmailValidator';
-import React from 'react';
 import { API_BASE_URL } from '../../../API/API';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { dataContext } from '../../../context/Authcontext';
@@ -61,6 +60,7 @@ interface UserRegistrationForm {
   password: string;
   confirmPassword: string;
   dateOfBirth: string;
+  gender: string;
   location: string;
   preferences: {
     favoriteColors: string[];
@@ -95,6 +95,13 @@ const PREFERENCES_OPTIONS = {
     'Viajes', 'Gastronomía', 'Redes Sociales', 'Fotografía', 'Dibujar'
   ]
 };
+
+const GENDER_OPTIONS = [
+  'Masculino',
+  'Femenino',
+  'No binario',
+  'Prefiero no decirlo',
+];
 
 const STORAGE_KEY = 'user_registration_form';
 const PHOTOS_STORAGE_KEY = 'user_photos_';
@@ -136,6 +143,7 @@ export default function UserRegisterScreen({ navigation, route }: Props) {
     password: '',
     confirmPassword: '',
     dateOfBirth: '',
+    gender: '',
     location: '',
     preferences: {
       favoriteColors: [],
@@ -177,6 +185,8 @@ export default function UserRegisterScreen({ navigation, route }: Props) {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const [showErrorModal, setShowErrorModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -301,6 +311,7 @@ export default function UserRegisterScreen({ navigation, route }: Props) {
         password: '',
         confirmPassword: '',
         dateOfBirth: '',
+        gender: '',
         location: '',
         preferences: {
           favoriteColors: [],
@@ -439,6 +450,10 @@ export default function UserRegisterScreen({ navigation, route }: Props) {
   const validateStep4 = (): boolean => {
     if (!formData.dateOfBirth) {
       showError('La fecha de nacimiento es requerida');
+      return false;
+    }
+    if (!formData.gender) {
+      showError('Selecciona tu género');
       return false;
     }
     if (!formData.location.trim()) {
@@ -642,7 +657,8 @@ export default function UserRegisterScreen({ navigation, route }: Props) {
       setVerificationCode(codigo);
 
       await enviarSMS(fullPhone, codigo);
-      showError('✅ Código reenviado exitosamente');
+      setSuccessMessage('✅ Código reenviado exitosamente');
+      setShowSuccessModal(true);
 
     } catch (error: any) {
       showError('Error al reenviar código: ' + error.message);
@@ -680,24 +696,25 @@ export default function UserRegisterScreen({ navigation, route }: Props) {
       setIsProcessing(true);
 
       // Guardar usuario en Firestore
-      const fullPhone = `${formData.countryCode}${formData.phone}`.replace(/\s/g, '');
+      const fullPhone = `${formData.countryCode}${formData.phone}`.replaceAll(' ', '');
       
-      await saveMessageToFirestore(
-        formData.name,
-        formData.lastName,
-        formData.email,
-        formData.password,
-        fullPhone,
-        formData.dateOfBirth,
+      await saveMessageToFirestore({
+        userName: formData.name,
+        userLastName: formData.lastName,
+        userMail: formData.email,
+        userPassword: formData.password,
+        userPhone: fullPhone,
+        dateOfBirth: formData.dateOfBirth,
         age,
-          isMinor ? 'cedula' : undefined,
-        `${formData.countryName}, ${formData.location}`,
-        formData.preferences,
-        photoUrls.documentPhoto,
-        "document",
-        selectedTelecomCompany?.nit,
-        selectedTelecomCompany?.name
-      );
+        isMinor,
+        location: `${formData.countryName}, ${formData.location}`,
+        preferences: formData.preferences,
+        documentUrl: photoUrls.documentPhoto,
+        documentType: isMinor ? "cedula" : undefined,
+        gender: formData.gender,
+        telecomCompanyNit: selectedTelecomCompany?.nit,
+        telecomCompanyName: selectedTelecomCompany?.name,
+      });
 
       if (!isMountedRef.current) return;
 
@@ -963,7 +980,7 @@ export default function UserRegisterScreen({ navigation, route }: Props) {
         />
         <DefaultTextInputDriverBlackPassword
           icon={require("../../../../assets/profile_key.png")}
-          placeholder='Mínimo 6 caracteres'
+          placeholder='Mínimo 6 Digitos'
           onChangeText={text => updateFormData('password', text)}
           value={formData.password}
           keyBoarType='numeric'
@@ -994,7 +1011,7 @@ export default function UserRegisterScreen({ navigation, route }: Props) {
       <View style={styles.stepHeader}>
         <Text style={styles.stepNumber}>PASO 4 DE {isMinor ? '6' : '5'}</Text>
         <Text style={styles.stepTitle}>Cuéntanos más</Text>
-        <Text style={styles.stepSubtitle}>Tu edad y ubicación</Text>
+        <Text style={styles.stepSubtitle}>Tu edad, género y ubicación</Text>
       </View>
 
       <View style={styles.inputsContainer}>
@@ -1024,6 +1041,31 @@ export default function UserRegisterScreen({ navigation, route }: Props) {
               {isMinor ? `⚠️ Eres menor de edad (${age} años)` : `✅ Tienes ${age} años`}
             </Text>
           )}
+        </View>
+
+        <View>
+          <Text style={styles.inputLabel}>Género</Text>
+          <View style={styles.preferencesGrid}>
+            {GENDER_OPTIONS.map((genderOption) => (
+              <TouchableOpacity
+                key={genderOption}
+                onPress={() => updateFormData('gender', genderOption)}
+                style={[
+                  styles.preferenceTag,
+                  formData.gender === genderOption && styles.preferenceTagSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.preferenceTagText,
+                    formData.gender === genderOption && styles.preferenceTagTextSelected,
+                  ]}
+                >
+                  {genderOption}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         <LocationPicker
@@ -1408,6 +1450,9 @@ export default function UserRegisterScreen({ navigation, route }: Props) {
           <Text style={{ fontSize: 12, color: '#999', marginBottom: 4, marginTop: 12 }}>Edad</Text>
           <Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>{age} años</Text>
 
+          <Text style={{ fontSize: 12, color: '#999', marginBottom: 4, marginTop: 12 }}>Género</Text>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>{formData.gender || 'No especificado'}</Text>
+
           <Text style={{ fontSize: 12, color: '#999', marginBottom: 4, marginTop: 12 }}>Ubicación</Text>
           <Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>{formData.location}</Text>
         </View>
@@ -1425,7 +1470,6 @@ export default function UserRegisterScreen({ navigation, route }: Props) {
 
   return (
     <KeyboardAwareScrollView 
-      behavior={Platform.OS === "ios" ? 'padding' : 'height'} 
       style={{ flex: 1 }}
       enableOnAndroid
       keyboardShouldPersistTaps="handled"
@@ -1553,6 +1597,11 @@ export default function UserRegisterScreen({ navigation, route }: Props) {
         message={errorMessage}
         onClose={() => setShowErrorModal(false)}
       />
+        <SuccessModal
+          visible={showSuccessModal}
+          message={successMessage}
+          onClose={() => setShowSuccessModal(false)}
+        />
     </KeyboardAwareScrollView>
   );
 }

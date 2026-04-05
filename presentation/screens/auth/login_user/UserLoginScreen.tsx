@@ -333,13 +333,14 @@ export default function UserLoginScreen({ navigation, route }: Props) {
                                         "Contraseña actualizada. Si tenías sesión en otro celular, vuelve a intentar en este dispositivo."
                                     );
                                 } else {
-                                    setErrorMessage("Contraseña actualizada. Por favor inicia sesión manualmente.");
+                                    setSuccessMessage("Contraseña actualizada. Por favor inicia sesión manualmente.");
+                                    setShowSuccessModal(true)
                                 }
                                 setShowErrorModal(true);
                             }
                         } catch (_) {
                             setErrorMessage("Contraseña actualizada. Por favor inicia sesión manualmente.");
-                            setShowErrorModal(true);
+                            
                         } finally {
                             setLoadingPayment(false);
                         }
