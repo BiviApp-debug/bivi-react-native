@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "API_URL": "https://motuberos-brack-end.onrender.com"
+        "API_URL": "https://bivi-connect-data-backend.onrender.com"
       }
 
     },
@@ -21,7 +21,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "API_URL": "https://motuberos-brack-end.onrender.com"
+        "API_URL": "https://bivi-connect-data-backend.onrender.com"
       },
       "android": {
         "buildType": "app-bundle"

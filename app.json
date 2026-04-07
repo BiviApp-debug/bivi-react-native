@@ -14,7 +14,7 @@
       }
     },
     "splash": {
-      "image": "./assets/logo_company.png",
+      "image": "./assets/bivi-bee-mascot.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
@@ -22,9 +22,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "MotoUberos necesita tu ubicación para conectar conductores y clientes en tiempo real.",
-          "locationAlwaysPermission": "MotoUberos usa tu ubicación en segundo plano para que los conductores puedan rastrear el viaje activo.",
-          "locationWhenInUsePermission": "MotoUberos necesita tu ubicación para mostrarte en el mapa y calcular rutas."
+          "locationAlwaysAndWhenInUsePermission": "bibiapp necesita tu ubicación para conectar conductores y clientes en tiempo real.",
+          "locationAlwaysPermission": "bibiapp usa tu ubicación en segundo plano para que los conductores puedan rastrear el viaje activo.",
+          "locationWhenInUsePermission": "bibiapp necesita tu ubicación para mostrarte en el mapa y calcular rutas."
         }
       ],
       [
@@ -46,8 +46,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "MotoUberos necesita acceso a tus fotos para actualizar tu foto de perfil.",
-          "cameraPermission": "MotoUberos necesita la cámara para tomar tu foto de perfil."
+          "photosPermission": "bibiapp necesita acceso a tus fotos para actualizar tu foto de perfil.",
+          "cameraPermission": "bibiapp necesita la cámara para tomar tu foto de perfil."
         }
       ]
     ],
@@ -59,23 +59,23 @@
       "supportsTablet": true,
       "buildNumber": "2",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "MotoUberos necesita tu ubicación para conectar conductores y clientes en tiempo real.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "MotoUberos usa tu ubicación en segundo plano para rastrear viajes activos.",
-        "NSLocationAlwaysUsageDescription": "MotoUberos usa tu ubicación en segundo plano para rastrear viajes activos.",
+        "NSLocationWhenInUseUsageDescription": "bibiapp necesita tu ubicación para conectar conductores y clientes en tiempo real.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "bibiapp usa tu ubicación en segundo plano para rastrear viajes activos.",
+        "NSLocationAlwaysUsageDescription": "bibiapp usa tu ubicación en segundo plano para rastrear viajes activos.",
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "MotoUberos necesita la cámara para tomar tu foto de perfil.",
-        "NSPhotoLibraryUsageDescription": "MotoUberos necesita acceso a tus fotos para actualizar tu foto de perfil.",
+        "NSCameraUsageDescription": "bibiapp necesita la cámara para tomar tu foto de perfil.",
+        "NSPhotoLibraryUsageDescription": "bibiapp necesita acceso a tus fotos para actualizar tu foto de perfil.",
         "UIBackgroundModes": ["location", "fetch"]
       },
       "config": {
         "googleMapsApiKey": "AIzaSyCswnIqrTLRVted_l5561S3n-DIUYN79s4"
       },
-      "bundleIdentifier": "com.motouberos.app"
+      "bundleIdentifier": "com.bibiapp.app"
     },
     "android": {
       "versionCode": 2,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo_company.png",
+        "foregroundImage": "./assets/bivi-bee-mascot.png",
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
@@ -93,10 +93,10 @@
           "apiKey": "AIzaSyCswnIqrTLRVted_l5561S3n-DIUYN79s4"
         }
       },
-      "package": "com.motouberos.app"
+      "package": "com.bibiapp.app"
     },
     "web": {
-      "favicon": "./assets/logo_company.png"
+      "favicon": "./assets/bivi-bee-mascot.png"
     },
     "owner": "mamoraca"
   }

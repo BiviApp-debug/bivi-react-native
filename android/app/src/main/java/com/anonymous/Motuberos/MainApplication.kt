@@ -1,4 +1,4 @@
-package com.anonymous.Motuberos
+package com.anonymous.BibiConnect
 
 import android.app.Application
 import android.content.res.Configuration
