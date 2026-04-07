@@ -171,7 +171,7 @@ const PaymentMethodsList: React.FC<PaymentMethodsListProps> = ({
           userPhone,
           amount: amountInCents,
           source_id: method.source_id,
-          description: `Pago viaje MotoUberos`,
+          description: `Pago viaje bibiConnect`,
           installments: 1,
         }),
       });

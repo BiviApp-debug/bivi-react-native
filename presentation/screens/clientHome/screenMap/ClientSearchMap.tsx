@@ -1124,7 +1124,7 @@ export default function ClientSearchMap({ navigation }: Props) {
           `&format=json&addressdetails=1&accept-language=es`;
 
         const res = await fetch(url, {
-          headers: { "User-Agent": "MotoUberos/1.0 (motouberos.app)" },
+          headers: { "User-Agent": "bibiConnect/1.0 (bibiConnect.app)" },
           signal: ac.signal,
         });
         const json = await res.json();

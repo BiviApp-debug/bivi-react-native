@@ -154,7 +154,7 @@ const CreditCardModal: React.FC<CreditCardModalProps> = ({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: `${userPhone}@motoUberos.com`,
+            email: `${userPhone}@bibiConnect.com`,
             token: wompiToken,
             acceptance_token,
           }),

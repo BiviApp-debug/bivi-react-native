@@ -41,7 +41,7 @@ export default function CheckboxTerminos({ onChange }: any) {
 
                 <Text
                     style={{ fontWeight: "bold", textDecorationLine: "none" }}
-                    onPress={() => Linking.openURL("https://www.motouberos.com.co/terminos")}
+                    onPress={() => Linking.openURL("https://www.bibiConnect.com.co/terminos")}
                 >
                     Términos de uso
                 </Text>
@@ -50,7 +50,7 @@ export default function CheckboxTerminos({ onChange }: any) {
 
                 <Text
                     style={{ fontWeight: "bold", textDecorationLine: "none" }}
-                    onPress={() => Linking.openURL("https://www.motouberos.com.co/terminos")}
+                    onPress={() => Linking.openURL("https://www.bibiConnect.com.co/terminos")}
                 >
                     Aviso de privacidad
                 </Text>
