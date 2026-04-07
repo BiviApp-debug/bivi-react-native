@@ -6,29 +6,27 @@ export const saveDriverToFirestore = async (
   lastName: string,
   email: string,
   phone: string,
-  carId: string,
-  carModel: string,
-  carBrand: string,
-  vehicleType: string,
   cedula: string,
-  licenseNumber: string,
   documentPhoto: string,
-  licensePhoto: string,
   selfiePhoto: string,
-  vehiclePhoto: string,
-  tecnoPhoto: string,
   password: string,
 ): Promise<{ success: boolean; error?: string }> => {
-  const role = "driver_role";
+  const role = "user_company";
 
   try {
-    const response = await fetch(`${API_BASE_URL}/driverRegister`, {
+    const response = await fetch(`${API_BASE_URL}/companyRegister`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name, lastName, email, phone, carId, carModel, carBrand,
-        vehicleType, cedula, licenseNumber, documentPhoto, licensePhoto,
-        selfiePhoto, vehiclePhoto, tecnoPhoto, password, role,
+        name,
+        lastName,
+        email,
+        phone,
+        cedula,
+        documentPhoto,
+        selfiePhoto,
+        password,
+        role,
       }),
     });
 

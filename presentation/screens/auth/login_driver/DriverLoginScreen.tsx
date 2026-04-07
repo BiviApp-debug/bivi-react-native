@@ -1,32 +1,27 @@
-import { Image, View, Text, Alert, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
+import { Image, View, Text, TouchableOpacity, Modal, ScrollView, Platform } from 'react-native';
 import RoundedButton from '../../../components/RoundedButton';
-import DefaultTextInputUser from '../../../components/DefaultTextInputUser';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../../../navigator/MainStackNavigator';
 import styles from './Styles';
-import { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import validatePhone from '../../../utils/PhoneValidator';
 import { saveMessageToFirestore } from './loginFunctions';
 import { dataContext } from '../../../context/Authcontext';
-import React from 'react';
 import SubscriptionModal from './SubscriptionModal';
-import { getDriverSubscription } from '../../../utils/getDriverSubscription';
-import { getUserByPhone } from '../../../utils/getUserByPhone';
 import { getDriverByPhone } from '../../../utils/getDriverByPhone';
 import { io } from 'socket.io-client';
-import { connectSocket } from '../../../utils/Conections';
 import { API_BASE_URL } from '../../../API/API';
 import { fetchSubscriptionStatus } from '../../../utils/VerifySuscription';
-import DefaultTextInputDriver from '../../../components/DefaultTextInputDriver';
-import YellowRoundedButton from '../../../components/YellowRoundedButton';
 import { getUpdates } from '../../../utils/getUpdatePlans';
 import ResetPasswordModalDriver from '../../../utils/ResetPasswordModalDriver';
 import { loadSavedPhone } from '../../../utils/SavedPhoneFunctios';
-import DefaultTextInputDriverLogin from '../../../components/DefaultTextInputDriverLogin';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import ErrorModal from '../../../components/ErrorModal';
 import SuccessModal from '../../../components/SuccessModal';
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import DefaultTextInputUserLogin from '../../../components/DefaultTextInputUserLogin';
+import DefaultTextInputUserCountry from '../../../components/DefaultTextInputUserCountry';
+import { getCountries } from '../../../utils/getCountries';
 
 const socket = io(`${API_BASE_URL}`, {
   transports: ["websocket"],
@@ -37,13 +32,13 @@ const socket = io(`${API_BASE_URL}`, {
 
 interface Props extends StackScreenProps<RootStackParamList, "DriverLoginScreen"> { };
 
-export default function DriverLoginScreen({ navigation, route }: Props) {
+export default function DriverLoginScreen({ navigation }: Readonly<Props>) {
 
 
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [showUpdateButon, SetshowUpdateButon] = useState(false);
+  const [showUpdateButon, setShowUpdateButon] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [loadingPayment, setLoadingPayment] = useState(false);
   const [showScreen, setShowScreen] = useState(false);
@@ -54,6 +49,9 @@ export default function DriverLoginScreen({ navigation, route }: Props) {
   const [successMessage, setSuccessMessage] = useState("");
 
   const [loadingStatus, setLoadingStatus] = useState("Iniciando...")
+  const [selectedCode, setSelectedCode] = useState('+57');
+  const [showCodes, setShowCodes] = useState(false);
+  const [countryCodes, setCountryCodes] = useState<any[]>([]);
 
   const { authResponse, setAuthResponse } = useContext(dataContext)
 
@@ -129,6 +127,17 @@ export default function DriverLoginScreen({ navigation, route }: Props) {
           await AsyncStorage.removeItem('savedPhone');
           setShowScreen(true);
         }
+
+        const allcodes = await getCountries();
+        if (allcodes?.rows) {
+          const formatted = allcodes.rows.map((row: any) => ({
+            name: row[0],
+            code: row[1],
+            iso: row[2],
+            coin: row[3],
+          }));
+          setCountryCodes(formatted);
+        }
       } catch (error) {
         console.error("Error en carga inicial:", error);
         setErrorMessage("Error al conectar con el servidor. Por favor intenta de nuevo.");
@@ -154,7 +163,9 @@ export default function DriverLoginScreen({ navigation, route }: Props) {
 
   const handleLogin = async () => {
     try {
-      const login_response = await loginWithForceLogout(phone, password);
+      const normalizedPhone = phone.trim();
+      const fullPhone = `${selectedCode}${normalizedPhone}`.replaceAll(' ', '');
+      const login_response = await loginWithForceLogout(fullPhone, password);
       if (login_response && !login_response.__loginError) {
         setAuthResponse(login_response);
       } else {
@@ -178,9 +189,10 @@ export default function DriverLoginScreen({ navigation, route }: Props) {
 
   const handleSubscriptionVerified = async () => {
     const normalizedPhone = phone.trim();
+    const fullPhone = `${selectedCode}${normalizedPhone}`.replaceAll(' ', '');
     const normalizedPassword = password.trim();
     setLoadingPayment(true)
-    let authRegisterConfirmation = await getDriverByPhone(normalizedPhone)
+    let authRegisterConfirmation = await getDriverByPhone(fullPhone)
     //console.log(authRegisterConfirmation, "holas_datas_67");
 
     if (normalizedPhone === "" || normalizedPassword === "") {
@@ -222,18 +234,18 @@ export default function DriverLoginScreen({ navigation, route }: Props) {
 
 
     try {
-      let verifyRegister = await getDriverByPhone(normalizedPhone);
-      const response = await fetchSubscriptionStatus(normalizedPhone);
+      let verifyRegister = await getDriverByPhone(fullPhone);
+      //const response = await fetchSubscriptionStatus(fullPhone);
       //console.log(response, "holas_datas_2");
 
       if (verifyRegister) {
 
 
-        if (!response.isActive) {
+       /*  if (!response.isActive) {
           setShowSubscriptionModal(true)
           setLoadingPayment(false)
-        } else {
-          const login_response = await loginWithForceLogout(normalizedPhone, normalizedPassword);
+        } else { */
+          const login_response = await loginWithForceLogout(fullPhone, normalizedPassword);
           if (login_response && !login_response.__loginError) {
             setAuthResponse(login_response);
           } else {
@@ -248,7 +260,7 @@ export default function DriverLoginScreen({ navigation, route }: Props) {
             setShowErrorModal(true);
           }
           setLoadingPayment(false);
-        }
+        /*}*/
       } else {
         setLoadingPayment(false);
         setErrorMessage("El usuario no existe debes registrarte");
@@ -294,92 +306,120 @@ export default function DriverLoginScreen({ navigation, route }: Props) {
       extraScrollHeight={Platform.OS === 'android' ? 50 : 0}
     >
       <View style={styles.container}>
-        <Image
-          style={styles.imageFont}
-          source={require("../../../../assets/mapa_fondo_cliente.png")}
-        />
-        <View style={styles.form}>
-          <Image
-            source={require("../../../../assets/logo_login.png")}
-            style={styles.imageDriver}
-          />
-          <Text style={styles.title}>
-            Iniciar Sesión Conductor
-          </Text>
+        <View style={styles.headerPurple}>
+          <TouchableOpacity
+            onPress={() => {
+              navigation.navigate('UserLoginScreen')
+            }}
+            style={styles.driverIconButton}
+          >
+            <Image
+              source={require('../../../../assets/UserCircle.png')}
+              style={styles.userSwitchIcon}
+            />
+          </TouchableOpacity>
 
-          <View style={styles.content_display}>
-            <TouchableOpacity
-              style={styles.auto_button_client}
-              onPress={() => {
-                navigation.navigate('UserLoginScreen')
-              }}
-            >
-              <Text style={styles.title_buton_client}>
-                Cliente
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.auto_button_driver}>
-              <Text style={styles.title_buton_driver}>
-                Conductor
-              </Text>
+          <Image
+            source={require("../../../../assets/bivi-bee-mascot.png")}
+            style={styles.logoHeader}
+          />
+          <Text style={styles.headerTitle}>Acceso para Empresas</Text>
+          <Text style={styles.headerSubtitle}>BIVI CONNECT - Redención de Megas</Text>
+        </View>
+
+        <View style={styles.formContainer}>
+          <View style={styles.tabsContainer}>
+            <TouchableOpacity style={styles.tabActive}>
+              <Text style={styles.tabActiveText}>Login Empresa</Text>
             </TouchableOpacity>
           </View>
 
-          <Image
-            source={require("../../../../assets/driver_icon_login.png")}
-            style={styles.imageIcon}
-          />
-          <DefaultTextInputDriver
-            icon={require("../../../../assets/phone.png")}
-            placeholder='Numero de Teléfono'
-            onChangeText={text => setPhone(text)}
-            value={phone}
-            keyBoarType='numeric'
-            secureText={false}
-          />
-          <Image
-            source={require("../../../../assets/key_icon_login.png")}
-            style={styles.imageIcon}
-          />
-          <DefaultTextInputDriverLogin
-            icon={require("../../../../assets/candado.png")}
-            placeholder='Contraseña'
-            onChangeText={text => setPassword(text)}
-            value={password}
-            keyBoarType='default'
-            secureText={true}
-          />
+          <View style={styles.inputsSection}>
+            <Text style={styles.inputLabel}>Teléfono</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity onPress={() => setShowCodes(true)}>
+                <Text style={{ fontWeight: 'normal', marginRight: 8 }}>
+                  {selectedCode}
+                </Text>
+              </TouchableOpacity>
+              <DefaultTextInputUserCountry
+                icon={require("../../../../assets/phone.png")}
+                placeholder='000 000 0000'
+                onChangeText={text => setPhone(text)}
+                value={phone}
+                keyBoarType='numeric'
+                secureText={false}
+              />
+            </View>
+
+            <Modal visible={showCodes} transparent animationType="fade">
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContainer}>
+                  <ScrollView>
+                    {countryCodes.map((item: any, index: any) => (
+                      <TouchableOpacity
+                        key={index}
+                        onPress={() => {
+                          setSelectedCode(item.code);
+                          setShowCodes(false);
+                        }}
+                        style={styles.countryItem}
+                      >
+                        <Text style={styles.countryText}>
+                          {item.name} ({item.code})
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  <TouchableOpacity onPress={() => setShowCodes(false)}>
+                    <Text style={styles.closeText}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+
+            <Text style={styles.inputLabel}>Contraseña</Text>
+            <DefaultTextInputUserLogin
+              icon={require("../../../../assets/candado.png")}
+               placeholder='••••••••'
+                            onChangeText={text => setPassword(text)}
+                            value={password}
+                            keyBoarType='numeric'
+                            secureText={true}
+            />
+          </View>
+
+          <TouchableOpacity onPress={() => setShowResetModal(true)}>
+            <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
+          </TouchableOpacity>
+
           {showUpdateButon ? (
             <RoundedButton
               text="Actualizar"
-              onPress={() => SetshowUpdateButon(false)}
-              color='white'
+              onPress={() => setShowUpdateButon(false)}
+              color='#E91E63'
             />
           ) : (
             <RoundedButton
-              text={loadingPayment ? "Cargando" : "Entrar"}
+              text={loadingPayment ? "Cargando" : "Entrar a BIVI"}
               onPress={() => {
                 handleSubscriptionVerified();
               }}
-              color='white'
+              color='#E91E63'
             />
           )}
 
-          <TouchableOpacity onPress={() => setShowResetModal(true)}>
-            <Text style={styles.alert}>¿Olvidaste tu contraseña?</Text>
-          </TouchableOpacity>
-          <View style={styles.content_display}>
-            <Text style={styles.alert}>No tienes cuenta? Créala</Text>
-            <YellowRoundedButton
-              text="Aquí"
-              onPress={() => navigation.navigate('DriverRegisterScreen')}
-              color='#FFCC28'
-            />
+          <View style={styles.registerContainer}>
+            <Text style={styles.registerText}>¿Sin cuenta? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('DriverRegisterScreen')}>
+              <Text style={styles.registerLink}>Registra tu empresa</Text>
+            </TouchableOpacity>
           </View>
         </View>
         <SubscriptionModal
           visible={showSubscriptionModal}
-          userPhone={phone}
+          userPhone={`${selectedCode}${phone}`.replaceAll(' ', '')}
           userPassword={password}
 
           onClose={() => setShowSubscriptionModal(false)}

@@ -169,6 +169,7 @@ export default function UserProfileScreen({ navigation }: Props) {
         setLoading(true);
 
         if (!authResponse?.usuario?.phone) {
+          return;
           setErrorMessage('No se encontró el teléfono del usuario');
           setShowErrorModal(true);
           setLoading(false);

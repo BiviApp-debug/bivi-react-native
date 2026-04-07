@@ -1,4 +1,3 @@
-import { Alert } from 'react-native';
 import { API_BASE_URL } from '../../../API/API';
 import { savePhone } from '../../../utils/SavedPhoneFunctios';
 
@@ -21,11 +20,13 @@ export async function fetchWithRetry(url: string, options = {}, maxRetries = 3) 
       await new Promise(resolve => setTimeout(resolve, 2000)); // Esperar 2s antes de reintentar
     }
   }
+
+  throw new Error('No se obtuvo respuesta del servidor');
 }
 
 export const saveMessageToFirestore = async (phone: string, password: string) => {
   try {
-    const response = await fetchWithRetry(`${API_BASE_URL}/loginDriver`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/loginCompany`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, password }),
@@ -52,7 +53,7 @@ export const saveMessageToFirestore = async (phone: string, password: string) =>
 
 export const updateDriverActiveStatus = async (phone:string , isActive:string) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/loginDriver/${phone}`, {
+    const response = await fetch(`${API_BASE_URL}/loginCompany/${phone}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -67,10 +68,10 @@ export const updateDriverActiveStatus = async (phone:string , isActive:string) =
       throw new Error(data.error || 'Error al actualizar el estado');
     }
 
-    //console.log('✅ Estado actualizado:', data.message);
     return data;
   } catch (error) {
-    console.error('⚠️ Error de red o servidor:', error.message);
+    const err = error as Error;
+    console.error('⚠️ Error de red o servidor:', err.message);
     throw error;
   }
 }

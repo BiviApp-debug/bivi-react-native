@@ -2,16 +2,19 @@ import { API_BASE_URL } from '../API/API'
 
 export const getDriverByEmail = async (email:string) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/driverMail/${email}`);
+    // Endpoint actual de empresa
+    let response = await fetch(`${API_BASE_URL}/companyMail/${email}`);
+
+    // Fallback para compatibilidad con endpoint legacy
+    if (!response.ok) {
+      response = await fetch(`${API_BASE_URL}/driverMail/${email}`);
+    }
 
     if (!response.ok) {
-      const error = await response.json();
-      console.log("Error:", error);
       return null;
     }
 
     const data = await response.json();
-    //console.log("Driver data:", data);
     return data;
 
   } catch (err) {

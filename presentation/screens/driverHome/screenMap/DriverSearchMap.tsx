@@ -598,7 +598,7 @@ export default function DriverSearchMap({ navigation }: Props) {
         if (!stored || !stored.includes('[storage-driver]')) return;
 
         const [storedPhone, storedPassword] = stored.split('[storage-driver]');
-        const res = await fetch(`${API_BASE_URL}/loginDriver`, {
+        const res = await fetch(`${API_BASE_URL}/loginCompany`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: storedPhone, password: storedPassword }),

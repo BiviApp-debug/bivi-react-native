@@ -24,8 +24,13 @@ import GameDetailScreen from '../screens/userProfile/GameDetailScreen';
 import ProfileDetailScreen from '../screens/userProfile/ProfileDetailScreen';
 import AnalyticsScreen from '../screens/userProfile/AnalyticsScreen';
 import { TelecomCompany, Mission, Offer, Survey, Game } from '../screens/userProfile/Biviconnectapi';
+import BrandProfileDetailScreen from "../screens/driverProfile/BrandProfileDetailScreen";
 
 export type RootStackParamList = {
+    BrandProfileDetailScreen: {
+        profile: any;
+        company?: TelecomCompany | null;
+    },
     ProfileDetailScreen: {
         profile: any;
         profilePhotoUrl: string | null;
@@ -122,6 +127,11 @@ export const MainStackNavigator = () => {
                   <Stack.Screen
                     name="ProfileDetailScreen"
                     component={ProfileDetailScreen}
+                    options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                    name="BrandProfileDetailScreen"
+                    component={BrandProfileDetailScreen}
                     options={{ headerShown: false }}
                 />
                   <Stack.Screen
