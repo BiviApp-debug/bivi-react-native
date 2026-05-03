@@ -10,7 +10,7 @@
     "extra": {
       "googleMapsApiKey": "AIzaSyCswnIqrTLRVted_l5561S3n-DIUYN79s4",
       "eas": {
-        "projectId": "5b22d20b-c60a-443d-affd-e0304b8c3029"
+        "projectId": "b37db621-62cf-4d79-88c6-0d4e56bc0ddf"
       }
     },
     "splash": {
@@ -65,7 +65,10 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "bibiapp necesita la cámara para tomar tu foto de perfil.",
         "NSPhotoLibraryUsageDescription": "bibiapp necesita acceso a tus fotos para actualizar tu foto de perfil.",
-        "UIBackgroundModes": ["location", "fetch"]
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
       },
       "config": {
         "googleMapsApiKey": "AIzaSyCswnIqrTLRVted_l5561S3n-DIUYN79s4"
@@ -86,7 +89,11 @@
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.VIBRATE",
-        "android.permission.RECEIVE_BOOT_COMPLETED"
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO"
       ],
       "config": {
         "googleMaps": {
